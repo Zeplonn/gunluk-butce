@@ -87,7 +87,7 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 .cal .h{font-size:.72rem;color:var(--mute);font-weight:700;padding-bottom:2px}
 .cal button{background:var(--soft);color:var(--ink);border:1.5px solid transparent;border-radius:12px;padding:5px 0 4px;font-weight:600;font-size:1rem;display:flex;flex-direction:column;align-items:center;gap:1px;min-height:52px}
 .cal .n{font-size:.86rem;font-weight:800}
-.cal .v{font-size:.68rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.cal .v{font-size:.74rem;color:var(--mute);font-variant-numeric:tabular-nums}
 .cal .past{opacity:.5}
 .cal .zero .v{color:var(--bad)}
 .cal .today{border-color:var(--acc);background:var(--acc2)}
@@ -129,6 +129,10 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 .empty{text-align:center;padding:26px 10px}
 .sub.ki{margin-top:16px}.sub.ki .row{padding:4px 0 8px}
 .empty .ico{font-size:2.2rem}
+.why{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.why summary{font-weight:700;font-size:.92rem;color:var(--mute)}
+.why .row{font-size:.9rem;padding:7px 0}
+.why .row .num{white-space:nowrap}
 /* ---- Alt sekmeler ---- */
 .tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));z-index:5}
 .tabs>div{max-width:460px;margin:0 auto;display:flex;justify-content:space-around}
@@ -149,7 +153,7 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 <body>
 <main id="app"></main>
 <script>
-var DEF=[[6,4000],[7,7500],[19,7500],[24,2000]];
+var SVERR=false,SDY=0;   /* SVERR: kayıt başarısız · SDY: harcama düne ekleniyor */
 var CATS=["Yemek","Ulaşım","Eğlence","Fatura","Diğer"];
 var PB={},CDX={},MSG2="";   /* PB: takvimde her günün tahmini para akışı · CDX: gün açıklamaları */
 var TKF=false,UNDO=null,TKMSG="";
@@ -160,7 +164,7 @@ function val(id){return document.getElementById(id).value}
 function on(id,fn){var e=g(id);if(e)e.onclick=fn}
 function all(sel,fn){document.querySelectorAll(sel).forEach(function(b){b.onclick=function(){fn(b)}})}
 function ld(){try{var r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
-function sv(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function sv(){try{localStorage.setItem(KEY,JSON.stringify(S));SVERR=false}catch(e){SVERR=true}}
 /* ---- Yedek: bütün veri tek satırlık bir metin olur (BUTCE1: + base64). Metin cihazdan sadece kullanıcı kopyalarsa çıkar. ---- */
 function bkMake(){return "BUTCE1:"+btoa(unescape(encodeURIComponent(JSON.stringify(S))))}
 function bkRead(t){
@@ -173,7 +177,7 @@ function bkLoad(o){S=o;mig();W=null;CF=null;TAB="bugun";
   MSG2="Yedek yüklendi ("+dm(pd(o.last))+" tarihli)."+(o.last<ymd(t0())?" Aradaki günlerin gelir ve ödemeleri eklendi; o günlerde harcama yaptıysan akşam uzlaştırmayla bakiyeni düzelt.":"");
   sv();show();window.scrollTo(0,0)}
 function bkCopy(box){
-  var t=bkMake(),done=function(){box.innerHTML='<p class="good" style="margin:10px 0 0">✓ Yedek kopyalandı. Notlar’a ya da kendine mesaj olarak yapıştırıp sakla.</p>'},
+  var t=bkMake(),done=function(){S.bk=ymd(t0());sv();box.innerHTML='<p class="good" style="margin:10px 0 0">✓ Yedek kopyalandı. Notlar’a ya da kendine mesaj olarak yapıştırıp sakla.</p>'},
    manual=function(){box.innerHTML='<p class="lab" style="margin:10px 0 0">Kopyalanamadı. Aşağıdaki metnin tamamını seçip kopyala:</p><textarea id="bkO" readonly>'+t+'</textarea>';var a=g("bkO");a.focus();a.select()},
    old=function(){var a=document.createElement("textarea");a.value=t;a.style.position="fixed";a.style.opacity="0";document.body.appendChild(a);a.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}a.remove();ok?done():manual()};
   try{navigator.clipboard.writeText(t).then(done,old)}catch(e){old()}
@@ -197,8 +201,18 @@ function tl(n){return Math.round(n).toLocaleString("tr-TR")+" TL"}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function card(id){return S.cards.filter(function(c){return c.id===id})[0]}
 function cname(id){var c=card(id);return c?c.n:"Silinen kart"}
-function c28(x){return Math.min(28,Math.max(1,Math.round(x||1)))}
-function num(v){var x=parseFloat(String(v).replace(",","."));return isNaN(x)?null:x}
+function c28(x){return Math.min(31,Math.max(1,Math.round(x||1)))}
+function num(v){var s=String(v==null?"":v).trim().replace(/\s|TL|₺/gi,"");if(!s)return null;
+  if(s.indexOf(",")>=0)s=s.replace(/\./g,"").replace(",",".");            /* 1.250,50 → 1250.50 */
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");            /* 7.500 → 7500 (binlik nokta) */
+  var x=parseFloat(s);return isNaN(x)||!isFinite(x)?null:x}
+function nv(x){return String(x).replace(".",",")}                           /* sayıyı forma virgüllü yaz */
+function nz(v,d){v=typeof v=="number"?v:parseFloat(v);return isFinite(v)?v:d}   /* sayı değilse varsayılan */
+function dim(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
+/* d, ayın "day" günü mü? 29–31 kısa aylarda ayın son gününe denk gelir */
+function isD(d,day){var n=d.getDate();return n==day||(day>n&&n==dim(d))}
+function tipNet(){var p=genPays().reduce(function(a,p){return a+p.a},0);     /* normal gün: gelirden düzenli ödemeler çıktıktan sonra */
+  return Math.max(0,S.inc.reduce(function(a,i){return a+i[1]},0)-p)*(1-S.res/100)/30}
 function hm(ms){var d=new Date(ms);return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
 var MON=["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
 var MONL=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
@@ -206,13 +220,13 @@ var DAYL=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi
 function dm(d){return d.getDate()+" "+MON[d.getMonth()]}
 function mY(d){return MON[d.getMonth()]+" "+d.getFullYear()}
 /* bugünden (dâhil) sonra ayın "day" gününe denk gelen ilk tarih */
-function nd(day){var t=t0();for(var k=0;k<=62;k++){var x=ad(t,k);if(x.getDate()==day)return x}return t}
+function nd(day){var t=t0();for(var k=0;k<=62;k++){var x=ad(t,k);if(isD(x,day))return x}return t}
 
 /* ---- Ödemeler ----
    p.card yoksa: kartsız sabit ödeme, p.day günü elindeki paradan çıkar.
    p.card varsa: o kartın taksiti, kartın ekstre gününde ekstre borcuna eklenir.
    p.left: kaç ödeme kaldı (null = süresiz). n: bu hesapta her ödemenin kaç kez sayıldığı. */
-function payOn(d,n,arr){var a=0;S.pay.forEach(function(p,i){if(p.card==null&&d.getDate()==p.day&&(p.left==null||(n[i]||0)<p.left)){a+=p.a;n[i]=(n[i]||0)+1;if(arr)arr.push({n:p.n||"Ödeme",a:p.a})}});return a}
+function payOn(d,n,arr){var a=0;S.pay.forEach(function(p,i){if(p.card==null&&isD(d,p.day)&&(p.left==null||(n[i]||0)<p.left)){a+=p.a;n[i]=(n[i]||0)+1;if(arr)arr.push({n:p.n||"Ödeme",a:p.a})}});return a}
 function tkOn(cid,n){var a=0;S.pay.forEach(function(p,i){if(p.card===cid&&(p.left==null||(n[i]||0)<p.left)){a+=p.a;n[i]=(n[i]||0)+1}});return a}
 function cardPays(id){return S.pay.filter(function(p){return p.card===id})}
 function genPays(){return S.pay.filter(function(p){return p.card==null})}
@@ -345,12 +359,12 @@ function debtSummary(){
     var c1=list[0].c,a=autoPlus(list[0].R,IE(c1),AMR(c1)),P2=payoff(list[0].R,"plus",IE(c1),AMR(c1),a);
     h+='<p class="note" style="margin-top:10px">Asgari yerine her ay sabit '+tl(a)+' ödersen borç ~'+P2.m+' ayda biter, faiz ~'+tl(P2.I)+' olur.</p>';
   }
-  return h+'</section>';
+  return h+'<p class="lab tiny" style="margin:10px 0 0">Faiz ve asgari oranları Kasım 2026’da geçerli kurallara göre, yaklaşık hesaplanır. Kartının faizi farklıysa Düzenle’den yazabilirsin.</p></section>';
 }
 function kulOf(c){return c.lim-c.stmt-c.cur-instLeft(c.id)}                /* kartın kullanılabilir limiti */
 function tipDay(){return S.inc.reduce(function(a,i){return a+i[1]},0)*(1-S.res/100)/30}   /* normal gün: aylık gelirin günlük payı */
 /* bugün kartla yapılan harcamanın ödeneceği gün: bir sonraki ekstre kesiminden sonraki ilk son ödeme günü */
-function payDay(c,t){var sd=null,d=t;for(var k=1;k<=70;k++){d=ad(t,k);if(!sd){if(d.getDate()==c.sd)sd=d}else if(d.getDate()==c.dd)return d}return d}
+function payDay(c,t){var sd=null,d=t;for(var k=1;k<=70;k++){d=ad(t,k);if(!sd){if(isD(d,c.sd))sd=d}else if(isD(d,c.dd))return d}return d}
 /* ---- Kartla idare ----
    Harcayacak para kalmayınca kartla, bir sonraki dönemden "öne çekerek" idare etme.
    Güvenli kart: bu harcamaların ödeneceği gün, yeni dönem başladıktan (para yattıktan) sonra olmalı.
@@ -363,17 +377,30 @@ function kiOptions(t,end){
     return {c:c,pay:pdD,kul:kul,auto:Math.max(0,auto),safe:pdD>=end&&auto>=10&&!c.late}});
 }
 function kiDaily(){return S.ki.man!=null?S.ki.man:S.ki.auto}
-function payEnd(p){var d=t0(),k=0;for(var i=1;k<p.left&&i<2000;i++){d=ad(t0(),i);if(d.getDate()==p.day)k++}return d}   /* son ödemenin tarihi */
+function payEnd(p){var d=t0(),k=0;for(var i=1;k<p.left&&i<2000;i++){d=ad(t0(),i);if(isD(d,p.day))k++}return d}   /* son ödemenin tarihi */
 
 /* eski sürüm verisini yeni alanlarla tamamla */
 function mig(){
-  S.inc=S.inc||JSON.parse(JSON.stringify(DEF));
-  S.ps=S.ps||6;
-  S.since=S.since||ymd(t0());
+  var DRX=/^\d{4}-\d\d-\d\d$/,isDt=function(x){return typeof x=="string"&&DRX.test(x)};
+  S.bal=nz(S.bal,0);S.res=Math.min(50,Math.max(0,nz(S.res,10)));S.fixed=Math.max(0,nz(S.fixed,0));
+  S.inc=(Array.isArray(S.inc)?S.inc:[]).filter(Array.isArray).map(function(i){return [c28(nz(i[0],1)),Math.max(0,nz(i[1],0))]});
+  S.ps=c28(nz(S.ps,S.inc.length?S.inc[0][0]:1));
+  if(!isDt(S.last))S.last=ymd(t0());
+  S.since=isDt(S.since)?S.since:ymd(t0());
+  S.spend=(Array.isArray(S.spend)?S.spend:[]).filter(function(x){return x&&isDt(x.d)});S.spend.forEach(function(x){x.a=Math.max(0,nz(x.a,0));if(x.adv!=null)x.adv=nz(x.adv,0);if(x.ts!=null)x.ts=nz(x.ts,0)});
+  S.auto=(Array.isArray(S.auto)?S.auto:[]).filter(function(x){return x&&isDt(x.d)});S.auto.forEach(function(x){x.a=nz(x.a,0);x.n=String(x.n||"")});
+  if(S.bk!=null&&!isDt(S.bk))S.bk=null;if(S.bkSn!=null&&!isDt(S.bkSn))S.bkSn=null;
   S.resUsed=S.resUsed||0;S.resEnd=S.resEnd||"";
   S.plan=S.plan||null;S.carry=S.carry||null;
-  S.pay=S.pay||[];S.exp=S.exp||[];
-  S.cards=S.cards||[];S.cardQ=S.cardQ||false;S.tk=S.tk||[];
+  S.pay=(Array.isArray(S.pay)?S.pay:[]).filter(Boolean);S.exp=(Array.isArray(S.exp)?S.exp:[]).filter(function(e){return e&&isDt(e.d)});
+  S.pay.forEach(function(p){p.n=String(p.n||"");p.a=Math.max(0,nz(p.a,0));p.day=c28(nz(p.day,1));p.left=p.left==null?null:Math.round(nz(p.left,0))});
+  S.exp.forEach(function(e){e.a=Math.max(0,nz(e.a,0));e.n=String(e.n||"");e.o=!!e.o});
+  S.cards=(Array.isArray(S.cards)?S.cards:[]).filter(Boolean);S.cardQ=S.cardQ||false;S.tk=(Array.isArray(S.tk)?S.tk:[]).filter(function(r){return r&&isDt(r.d)&&isDt(r.last)});
+  S.cards.forEach(function(c,i){c.id=nz(c.id,Date.now()+i);c.n=String(c.n||"Kart");c.lim=Math.max(0,nz(c.lim,0));c.stmt=Math.max(0,nz(c.stmt,0));c.cur=Math.max(0,nz(c.cur,0));c.sd=c28(nz(c.sd,1));c.dd=c28(nz(c.dd,1));
+    ["nw","adv","revS","revU","paid"].forEach(function(k){c[k]=Math.max(0,nz(c[k],0))});if(c.rate!=null)c.rate=nz(c.rate,null);if(c.extra!=null)c.extra=nz(c.extra,null);if(c.minDue!=null)c.minDue=nz(c.minDue,null);if(c.r0!=null)c.r0=nz(c.r0,null)});
+  S.tk.forEach(function(r){["a","fee","rate","rem","i","ib"].forEach(function(k){r[k]=Math.max(0,nz(r[k],0))});if(r.m=="tk"){r.n=Math.round(nz(r.n,0));r.ta=nz(r.ta,0)}else r.m="na"});
+  if(S.ki){S.ki.auto=nz(S.ki.auto,0);if(S.ki.man!=null)S.ki.man=nz(S.ki.man,0);if(!isDt(S.ki.end))S.ki=null}
+  if(S.carry&&(!isDt(S.carry.d)||!isFinite(S.carry.a)))S.carry=null;
   S.tk.forEach(function(r){if(!card(r.from))r.rem=0});           /* kartı silinen taklanın faizi artık izlenmez */
   if(S.defCard===undefined)S.defCard=(S.cardAll&&S.cards.length)?S.cards[0].id:null;   /* varsayılan ödeme kartı */
   if(S.defCard!=null&&!card(S.defCard))S.defCard=null;
@@ -393,14 +420,14 @@ function catchUp(){
   var c=pd(S.last),t=t0(),tsd=ymd(t);
   var done=function(p){S.done={d:tsd,txt:((S.done&&S.done.d==tsd)?S.done.txt+", ":"")+(p.n||"Bir ödeme")}};   /* son ödeme yapıldı */
   while(c<t){c=ad(c,1);
-    S.inc.forEach(function(i){if(c.getDate()==i[0])S.bal+=i[1]});
-    S.pay.forEach(function(p){if(p.card==null&&c.getDate()==p.day&&(p.left==null||p.left>0)){S.bal-=p.a;if(p.left!=null&&!--p.left)done(p)}});
+    S.inc.forEach(function(i){if(isD(c,i[0])&&i[1]>0){S.bal+=i[1];S.auto.push({d:ymd(c),k:"in",n:"Gelir",a:i[1]})}});
+    S.pay.forEach(function(p){if(p.card==null&&isD(c,p.day)&&(p.left==null||p.left>0)){S.bal-=p.a;if(p.a>0)S.auto.push({d:ymd(c),k:"out",n:p.n||"Ödeme",a:p.a});if(p.left!=null&&!--p.left)done(p)}});
     S.cards.forEach(function(k){
-      if(ad(c,-1).getDate()==k.dd&&k.stmt>0){                 /* son ödeme günü geçti, borç duruyor */
+      if(isD(ad(c,-1),k.dd)&&k.stmt>0){                 /* son ödeme günü geçti, borç duruyor */
         k.late=k.paid<k.minDue-1;                               /* asgari ödenmediyse gecikme */
         k.revS=k.stmt;k.ri=true;                                /* ödenmeyen kısım döner borç olur, faiz işler */
       }
-      if(c.getDate()==k.sd){                                    /* ekstre kesimi */
+      if(isD(c,k.sd)){                                    /* ekstre kesimi */
         if(k.ri&&k.revS>0){var it=Math.max(0,k.revS-tkNaRem(k.id))*IE(k);k.stmt+=it;k.revS+=it}   /* döner borca faiz (vergiler dahil); nakit avansın kendi faizi ayrı işler */
         (S.tk||[]).forEach(function(r){if(r.from===k.id&&r.m=="na"){tkAcc(r,c);var q=r.i-r.ib;if(q>0){k.stmt+=q;r.ib=r.i}}});   /* nakit avans faizi ekstreye */
         k.revS+=k.revU;k.revU=0;
@@ -412,6 +439,7 @@ function catchUp(){
   S.pay=S.pay.filter(function(p){return p.left==null||p.left>0});
   /* yeni dönem başladı: kartla idare biter, öne çekilen tutar artık normal kart borcu (yeni dönemin limitine yayılır) */
   if(S.ki&&tsd>=S.ki.end){S.kiDone={d:tsd,a:S.cards.reduce(function(a,c){return a+(c.adv||0)},0)};S.cards.forEach(function(c){c.adv=0});S.ki=null}
+  S.auto=S.auto.filter(function(x){return df(pd(x.d),t)<=3});
   S.last=ymd(t);S.spend=S.spend.filter(function(x){return df(pd(x.d),t)<=70});sv();
 }
 
@@ -424,8 +452,8 @@ function cardFieldsHTML(c,P){
    +fld("Kart limiti",P+"l",c.lim,"Toplam limit","decimal")
    +fld("Kullanılabilir limit",P+"k",c.kul,"Bankada yazan","decimal")
    +fld("Ödenmemiş ekstre borcu",P+"b",c.stmt,"Ödediysen 0","decimal")
-   +fld("Ekstre kesim günü",P+"s",c.sd,"1–28","numeric")
-   +fld("Son ödeme günü",P+"d",c.dd,"1–28","numeric")+'</div>'
+   +fld("Ekstre kesim günü",P+"s",c.sd,"1–31","numeric")
+   +fld("Son ödeme günü",P+"d",c.dd,"1–31","numeric")+'</div>'
    +'<p class="note" style="margin:6px 0 0">Ödenmemiş ekstre borcu: son kesilen ekstreden henüz ödemediğin tutar. Ekstreden sonraki harcamaları buraya yazma, onları kullanılabilir limitten uygulama kendisi bulur.</p>'
    +'<div class="sub"><b>Bu kartın borcunu nasıl ödüyorsun?</b>'
    +'<select id="'+P+'p" style="width:100%;max-width:100%;margin-top:8px;padding:12px">'
@@ -465,7 +493,7 @@ function checkCard(c){
   var lim=num(c.lim),kul=num(c.kul),tkTot=0,tkBad=false;
   c.tk.forEach(function(x){var a=num(x.a)||0,m=Math.round(num(x.m)||0);if(a>0&&!(m>0))tkBad=true;if(a>0&&m>0)tkTot+=a*m});
   if(num(c.sd)===null||num(c.dd)===null)return "Ekstre kesim günü ve son ödeme günü gerekli.";
-  if(num(c.sd)<1||num(c.sd)>28||num(c.dd)<1||num(c.dd)>28)return "Günler 1 ile 28 arasında olmalı.";
+  if(num(c.sd)<1||num(c.sd)>31||num(c.dd)<1||num(c.dd)>31)return "Günler 1 ile 31 arasında olmalı.";
   if(!(lim>0)||kul===null)return "Kart limitini ve kullanılabilir limiti yaz.";
   if(kul>lim)return "Kullanılabilir limit, kart limitinden büyük olamaz.";
   if(tkBad)return "Her taksitin kaç ay kaldığını yaz.";
@@ -494,7 +522,7 @@ function makeCard(c,id,old){
 }
 function cardToForm(k){
   return {n:k.n,lim:k.lim,kul:Math.round(k.lim-k.stmt-k.cur-instLeft(k.id)),stmt:Math.round(k.stmt),sd:k.sd,dd:k.dd,
-    tk:cardPays(k.id).map(function(p){return {n:p.n,a:p.a,m:p.left==null?"":p.left}}),plan:k.plan||"full",rate:k.rate==null?"":k.rate,extra:k.extra==null?"":k.extra};
+    tk:cardPays(k.id).map(function(p){return {n:p.n,a:nv(p.a),m:p.left==null?"":p.left}}),plan:k.plan||"full",rate:k.rate==null?"":nv(k.rate),extra:k.extra==null?"":nv(k.extra)};
 }
 function cfView(){
   var c=CF.c;
@@ -527,7 +555,7 @@ var WS=[
  {t:"Şu an elinde ne kadar var?",p:"Bankadaki ve cüzdandaki paranın toplamı. Bugün yatan para varsa dâhil et. Kredi kartı limitini katma.",
   b:function(){return '<input id="wb0" inputmode="decimal" placeholder="Örn. 3500" value="'+esc(W.bal)+'" style="width:100%">'},
   r:function(bk){W.bal=wv("wb0");if(!bk&&num(W.bal)===null)return "Bir tutar yaz (0 da olabilir)."}},
- {t:"Paran ayın hangi günleri yatıyor?",p:"Burs, maaş, harçlık, kira geliri… Her biri için ayın gününü ve tutarı yaz. Ay sonuna denk geliyorsa 28 yaz.",
+ {t:"Paran ayın hangi günleri yatıyor?",p:"Burs, maaş, harçlık, kira geliri… Her biri için ayın gününü ve tutarı yaz. Ayın son günü yatıyorsa 31 yaz; kısa aylarda kendiliğinden son güne alınır.",
   b:function(){if(!W.inc.length)W.inc.push({d:"",a:""});
    return '<div class="colh"><span>Gün</span><span>Tutar</span></div>'+W.inc.map(function(x,i){return '<div class="inc"><input class="dd" id="wid'+i+'" inputmode="numeric" placeholder="Gün" value="'+esc(x.d)+'"><input id="wia'+i+'" inputmode="decimal" placeholder="Tutar (TL)" value="'+esc(x.a)+'"><button class="ghost" data-wx="'+i+'" aria-label="Sil">×</button></div>'}).join("")
     +'<button class="ghost" id="wia">+ Bir gelir daha</button>'},
@@ -537,7 +565,7 @@ var WS=[
   r:function(bk){W.inc=rowsIn("wi",["d","a"]);if(bk)return;
    var ok=W.inc.filter(function(x){return num(x.d)!==null&&num(x.a)>0});
    if(!ok.length)return "En az bir gelir günü gir. Limit buna göre hesaplanıyor.";
-   if(ok.some(function(x){return num(x.d)<1||num(x.d)>28}))return "Gün 1 ile 28 arasında olmalı.";}},
+   if(ok.some(function(x){return num(x.d)<1||num(x.d)>31}))return "Gün 1 ile 31 arasında olmalı.";}},
  {t:"Hesap ayın kaçında başlasın?",p:"Bütçen bir “dönem” üzerinden hesaplanır: bu günden bir sonraki aynı güne kadar. Genelde ilk paranın yattığı gün iyi bir başlangıçtır.",
   b:function(){var ds=W.inc.map(function(x){return c28(num(x.d))}).filter(function(v,i,a){return a.indexOf(v)==i}).sort(function(a,b){return a-b});
    if(W.ps===null)W.ps=ds[0];
@@ -640,7 +668,7 @@ function collect(){
    bal: elindeki para · cards: [{id, s: ekstre borcu, u: ekstreye girmemiş, sd, dd, late}]
    ru: bu dönem acil payından kullanılan · cr: o güne devreden aşım · fx: sabit gider
    sp: o gün zaten harcanmış nakit (sadece "açık var" kontrolü için) · od: tarihi gelmiş arkadaş borcu */
-function pEnd(D){for(var k=1;k<=31;k++){var x=ad(D,k);if(x.getDate()==S.ps)return x}}
+function pEnd(D){for(var k=1;k<=31;k++){var x=ad(D,k);if(isD(x,S.ps))return x}}
 function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   od=od||0;
   var pu=JSON.parse(JSON.stringify(u0||{}));                                 /* bu güne kadar sayılmış ödemeler */
@@ -657,10 +685,10 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   /* temkinli: tüm kart borcu harcanmış sayılır · ödeme gününde: sadece yeni harcamalar hemen, eskisi ödeme gününde */
   /* plana bağlı döner borç peşin düşülmez; her ay planlanan ödemesi ödeme gününde düşülür */
   /* bugün ödenecek plan tutarı: hemen ödenecek borç gibi (limitten ve "yeter mi" kontrollerinden) düşülür */
-  cs.forEach(function(c){if(c.pl&&D.getDate()==c.dd&&c.rs>0&&!c.pd){var q=payR(c.plan,c.rs,c.amr,c.xt);late+=q;c.s-=q;c.rs-=q}});
+  cs.forEach(function(c){if(c.pl&&isD(D,c.dd)&&c.rs>0&&!c.pd){var q=payR(c.plan,c.rs,c.amr,c.xt);late+=q;c.s-=q;c.rs-=q}});
   var debt=late+cs.reduce(function(a,c){return a+Math.max(0,(due?c.nn:c.s+c.u-c.rs-c.ru)-c.ex)},0);
   /* ödeme gününde modunda: son ödeme günü bugünse eski ekstre borcu bugün ayrılır (bugün ödenmiş sayılır) */
-  if(due)cs.forEach(function(c){if(D.getDate()==c.dd&&c.os>0){debt+=c.os;c.s-=c.os;c.os=0}});
+  if(due)cs.forEach(function(c){if(isD(D,c.dd)&&c.os>0){debt+=c.os;c.s-=c.os;c.os=0}});
   var zb=bal-sp-late-od;if(zb<0)neg={d:D,m:-zb};
   /* ileriye bakış: bir sonraki dönemin sonuna kadar her para yatma gününde
      "o güne kadar elimdeki para, o güne kadarki ödemelerle yeter mi?" kontrolü.
@@ -669,14 +697,14 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   for(var k=1;k<=70;k++){
     d=ad(D,k);
     var inc=0,pay=0,cpay=0,dk=ymd(d),be=d<end,pn0=!nxt;
-    S.inc.forEach(function(i){if(d.getDate()==i[0])inc+=i[1]});
+    S.inc.forEach(function(i){if(isD(d,i[0]))inc+=i[1]});
     S.exp.forEach(function(e){if(!e.o&&e.d==dk)inc+=e.a});                  /* arkadaştan gelecek */
     pay=payOn(d,pu);
     S.exp.forEach(function(e){if(e.o&&e.d==dk)pay+=e.a});                   /* arkadaşa verilecek */
     cs.forEach(function(c){
-      if(d.getDate()==c.sd){if(c.pl&&c.ri&&c.rs>0){var it=c.rs*c.ie;c.rs+=it;c.s+=it}   /* döner borca faiz */
+      if(isD(d,c.sd)){if(c.pl&&c.ri&&c.rs>0){var it=c.rs*c.ie;c.rs+=it;c.s+=it}   /* döner borca faiz */
         var tk=tkOn(c.id,pu);c.s+=c.u+tk;c.os+=c.ou+tk;c.rs+=c.ru;c.ru=0;c.u=0;c.ou=0;if(be&&!due){pr+=tk;cpr+=tk}}   /* ekstre kesimi: bu ayın taksiti borca döner */
-      if(d.getDate()==c.dd){
+      if(isD(d,c.dd)){
         if(c.pl&&c.rs>0){var q=payR(c.plan,c.rs,c.amr,c.xt);cpay+=c.s-c.rs+q;if(be){pr+=q;cpr+=q}if(be&&due){pr+=c.os;cpr+=c.os}c.s=c.rs-q;c.rs=c.s;c.os=0;c.ri=true}   /* plan: yeni kısım tam, döner borçtan plan tutarı */
         else{cpay+=c.s;if(be&&due){pr+=c.os;cpr+=c.os}c.s=0;c.os=0;c.rs=0}}});   /* son ödeme günü: ekstre ödenir (modda eski borç bu döneme yazılır) */
     if(inc&&!nxt)nxt={d:d,a:inc};
@@ -693,7 +721,7 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   /* tavan: limit normal bir günün (aylık gelirin günlük payı) üstüne çıkmaz; fazlası "kenardaki para" olur, sonraki döneme yayılmaz */
   var cap=tipDay()>0?tipDay():Infinity,lm=Math.min(l1,l2,l3),kenar=cap<lm?(lm-cap)*left:0;
   var ln=Math.max(0,Math.floor(Math.min((before+rem-debt-od)*(1-S.res/100)/left,(before-late-od)/toNext,cap)));   /* sabit ödemesiz limit (ışık için) */
-  return {pr:pr,cpr:cpr,kenar:kenar,cres:debt+cpr,limit:Math.max(0,Math.floor(Math.min(lm,cap))-cr),end:end,nxt:nxt,left:left,toNext:toNext,rem:rem,neg:neg,debt:debt,late:late,avail:avail,ln:ln};
+  return {l1:l1,l2:l2,l3:l3,cap:cap,pr:pr,cpr:cpr,kenar:kenar,cres:debt+cpr,limit:Math.max(0,Math.floor(Math.min(lm,cap))-cr),end:end,nxt:nxt,left:left,toNext:toNext,rem:rem,neg:neg,debt:debt,late:late,avail:avail,ln:ln};
 }
 /* ---- Takvim tahmini: her gün limitine uyarsan sonraki günlerin limiti ---- */
 function proj(t,R0,kal,n,kiRem){
@@ -711,7 +739,7 @@ function proj(t,R0,kal,n,kiRem){
     d=ad(t,k);var dk=ymd(d);
     /* önce o gün gelen para, sonra ödemeler (her ödeme kaydedilir: takvimde gün açıklaması için) */
     var outs=[],gi=0;
-    S.inc.forEach(function(i){if(d.getDate()==i[0]){bal+=i[1];gi+=i[1]}});
+    S.inc.forEach(function(i){if(isD(d,i[0])){bal+=i[1];gi+=i[1]}});
     S.exp.forEach(function(e){if(e.d==dk&&!e.o){bal+=e.a;gi+=e.a}});
     var b0=bal;                                                                /* o gün elindeki para (ödemelerden önce) */
     S.exp.forEach(function(e){if(e.d==dk&&e.o){bal-=e.a;outs.push({n:"Verilecek: "+(e.n||"arkadaş"),a:e.a})}});
@@ -719,13 +747,13 @@ function proj(t,R0,kal,n,kiRem){
     cards.forEach(function(c){
       var nm=cname(c.id);
       if(c.late){if(c.s>=1)outs.push({n:nm+" gecikmiş borcu",a:c.s});bal-=c.s;c.s=0;c.late=false;c.nw=Math.min(c.nw,c.u)}   /* gecikmiş borcu hemen ödediğini varsay */
-      if(d.getDate()==c.dd){                                                   /* son ödeme günü: plana göre öde */
+      if(isD(d,c.dd)){                                                   /* son ödeme günü: plana göre öde */
         var b1=bal;
         if(c.plan!="full"&&c.rs>0){var q=c.pd?0:payR(c.plan,c.rs,c.amr,c.xt);bal-=c.s-c.rs+q;c.s=c.rs-q;c.rs=c.s;c.ri=true}
         else{bal-=c.s;c.s=0;c.rs=0}
         if(b1-bal>=1)outs.push({n:nm+" ekstresi"+(c.plan=="min"?" (asgari planı)":c.plan=="plus"?" (asgari+ planı)":""),a:b1-bal});
         c.pd=true;c.nw=Math.min(c.nw,c.u)}                                      /* bu ekstre ödendi */
-      if(d.getDate()==c.sd){c.pd=false;if(c.plan!="full"&&c.ri&&c.rs>0){var it=c.rs*c.ie;c.rs+=it;c.s+=it}
+      if(isD(d,c.sd)){c.pd=false;if(c.plan!="full"&&c.ri&&c.rs>0){var it=c.rs*c.ie;c.rs+=it;c.s+=it}
         c.s+=c.u+tkOn(c.id,pu);c.rs+=c.ru;c.ru=0;c.u=0}
     });
     var e=ymd(pEnd(ad(d,-1)));                                                 /* d gününün ait olduğu dönemin sonu */
@@ -751,12 +779,12 @@ function lampInfo(X,now){
   var e=tempoE(now),wk=S.wkFlex&&isWk(now),tol=wk?0.35:0.2,r=cap>0?X.spent/cap:0,subs=[],st,ti,msg;
   var tmsg="Saat "+hm(now.getTime())+" itibarıyla limitinin %"+Math.round(r*100)+" kadarını harcadın. Bu saate kadar %"+Math.round(e*100)+" civarı beklenirdi."+(wk?" (Hafta sonu esnekliği açık.)":"");
   /* baskı: borç ve ödemeler limiti normalin ne kadar altına indirdi */
-  var pr=X.norm>0?1-(X.limit+X.cr)/X.norm:0,plev=pr>=0.75?2:pr>=0.25?1:0;
+  var pr=X.norm>0?1-(X.limit+X.cr)/X.norm:0,plev=pr>=0.75?2:pr>=0.5?1:0,pnote=pr>=0.25;   /* norm: kart borcu olmasaydı (düzenli ödemeler dâhil) limit */
   /* limiti düşüren sebep: kart borcu (peşin düşülen), kart ödemeleri (asgari, taksit, eski ekstre), sabit ödemeler */
   var kb=X.debtEff>=1,ko=X.cpr>=1,so=X.fpr>=1;
-  var why=[kb?"kart borcu":"",ko?"kart ödemeleri":"",so||!(kb||ko)?"sabit ödemeler":""].filter(Boolean).join(", ").replace(/, ([^,]*)$/," ve $1");
+  var why=[kb||!ko?"kart borcu":"",ko?"kart ödemeleri":""].filter(Boolean).join(", ").replace(/, ([^,]*)$/," ve $1");
   why=why.charAt(0).toLocaleUpperCase("tr-TR")+why.slice(1);
-  var dmsg=why+" yüzünden bugünkü limitin "+tl(X.limit+X.cr)+"; normalde yaklaşık "+tl(X.norm)+" olurdu.";
+  var dmsg=why+" yüzünden bugünkü limitin "+tl(X.limit+X.cr)+"; kart borcun olmasaydı yaklaşık "+tl(X.norm)+" olurdu.";
   var tlev=cap>0?(r>e+tol+0.25?2:r>e+tol?1:0):0;
   /* mutlak seviye: elde harcanacak para kalmadıysa borç olmasa da uyar */
   var ab=X.tip>0?(X.limit+X.cr)/X.tip:1,alev=ab<0.10?3:ab<0.35?2:0;
@@ -772,10 +800,10 @@ function lampInfo(X,now){
   else if(lev){st=lev==2?"slow":"warn";ti=lev==2?"Yavaşla":"Dikkat";msg=tlev==lev?tmsg:plev==lev?dmsg:amsg}
   else{st="ok";ti="Rahat";msg=X.anyDebt?"Borç ve ödemeler günlük akışını bozmuyor.":"Planlı ödeme ya da borç yok."}
   if(KI){if(KI.tot>=1)subs.push("Bu dönem öne çekilen: <b>"+tl(KI.tot)+"</b>.");if(tlev&&st!="bad")subs.push(tmsg)}
-  if(!KI&&(st!="bad"||alev==3)&&plev&&msg!=dmsg)subs.push(dmsg);
+  if(!KI&&(st!="bad"||alev==3)&&pnote&&msg!=dmsg)subs.push(dmsg);
   if(!KI&&st!="bad"&&tlev&&msg!=tmsg)subs.push(tmsg);
-  if(!KI&&(plev||alev)&&X.rec)subs.push("Limitin "+dm(X.rec.d)+" itibarıyla yaklaşık <b>"+tl(X.rec.v)+"</b> olur.");
-  if(!KI&&plev&&X.cardNow&&X.debtEff>=1)subs.push("Kart borcunu bir sonraki paranla ödüyorsan, Ayarlar’daki “ödeme gününde düş” seçeneği daha gerçekçi bir limit verir.");
+  if(!KI&&(pnote||alev)&&X.rec)subs.push("Limitin "+dm(X.rec.d)+" itibarıyla yaklaşık <b>"+tl(X.rec.v)+"</b> olur.");
+  if(!KI&&pnote&&X.cardNow&&X.debtEff>=1)subs.push("Kart borcunu bir sonraki paranla ödüyorsan, Ayarlar’daki “ödeme gününde düş” seçeneği daha gerçekçi bir limit verir.");
   if(!KI&&X.defer>=1)subs.push("Kart borcunun "+tl(X.defer)+" kadarı son ödeme gününün dönemine bırakıldı; o dönemin limiti buna göre düşük olacak.");
   /* yeşilde: bu tempoyla dönem sonunda ne kalır */
   if(st=="ok"&&X.endBal!=null)subs.push(X.endBal>=0
@@ -862,8 +890,9 @@ function show(){
   var endBal=rate!=null&&rate>=1?Math.round(avail-(spent-advT)-rate*Math.max(0,left-1)):null;
   /* normal limit: kart borcu ve ödemeler hiç olmasaydı bugünkü limit (ışık bununla kıyaslar) */
   var bef=S.bal+cash+cr,norm=Math.max(0,Math.floor(Math.min((bef+rem-od)*(1-S.res/100)/left,(bef-od)/toNext,tipDay()>0?tipDay():Infinity)));
+  var normF=S.cards.length?L(t,S.bal+cash,[],S.resUsed,cr,S.fixed,cash,{},od).limit+cr:limit+cr;   /* kart borcu olmasaydı bugünkü limit */
   var P=proj(t,R,kal,35,KI&&!KI.stop?KI.rem:0),rec=null;
-  if(norm>0&&limit+cr<norm*0.75)for(var k=1;k<=35;k++){var dk0=ymd(ad(t,k));if(P[dk0]>=norm*0.75){rec={d:ad(t,k),v:P[dk0]};break}}
+  if(normF>0&&limit+cr<normF*0.75)for(var k=1;k<=35;k++){var dk0=ymd(ad(t,k));if(P[dk0]>=normF*0.75){rec={d:ad(t,k),v:P[dk0]};break}}
   /* sonraki döneme bırakılan eski borç; asgari planındaki döner borç hariç (o zaten aylara yayılıyor) */
   var planRev=cards.reduce(function(a,c){return a+(c.plan!="full"&&!c.late?Math.min(c.rs||0,c.s)+Math.min(c.ru||0,c.u):0)},0);
   var defer=Math.max(0,debtAll-R.debt+R.late-planRev);
@@ -872,11 +901,11 @@ function show(){
   /* bugün ve önümüzdeki 2 gün içindeki kart ödemeleri */
   var dueT=[],soon=[];
   S.cards.forEach(function(c){var a=dueNow(c);if(a<1)return;
-    if(c.late||c.dd==t.getDate())dueT.push({c:c,a:a,late:c.late});
-    else for(var k=1;k<=2;k++)if(ad(t,k).getDate()==c.dd){var B=PB[ymd(ad(t,k))];   /* o güne kadar yatacak paralar dahil */
+    if(c.late||isD(t,c.dd))dueT.push({c:c,a:a,late:c.late});
+    else for(var k=1;k<=2;k++)if(isD(ad(t,k),c.dd)){var B=PB[ymd(ad(t,k))];   /* o güne kadar yatacak paralar dahil */
       soon.push({n:c.n,d:ad(t,k),k:k,a:a,ok:B?B.b1>=0:S.bal>=a,now:S.bal>=a,miss:B?-B.b1:a-S.bal})}});   /* ödeme gününde modunda sonraki dönemlere bırakılan eski borç */
   /* tipik gün: aylık gelirin (acil payı hariç) güne düşen kısmı. Limit bunun çok altındaysa ışık uyarır */
-  var tip=tipDay();
+  var tip=tipNet();
   /* kartla idare teklifi: harcanacak para kalmadıysa ve güvenli bir kart varsa */
   /* borcu yüksek kullanıcıya daha fazla kart borcu önerme: faiz işleyen borç var ya da toplam kart borcu aylık gelirin yarısını aşıyor */
   var revAll=S.cards.reduce(function(a,c){return a+c.revS+c.revU},0),incM=S.inc.reduce(function(a,i){return a+i[1]},0);
@@ -884,7 +913,7 @@ function show(){
   var nDays=df(R.end,pEnd(R.end)),kOffer=!S.ki&&S.cards.length&&tip>0&&(limit+cr)/tip<0.10&&!late.length&&!R.neg;
   var ksafe=kopts.filter(function(o){return o.safe}).sort(function(a,b){return b.auto-a.auto});
   if(KI){KI.proj=KI.tot+(KI.stop?0:KI.rem);for(var dk1 in PK)KI.proj+=PK[dk1];KI.drop=KI.proj*(1-S.res/100)/nDays}
-  LCTX={late:late,neg:R.neg,kal:kal,limit:limit,spent:spent,cr:cr,norm:norm,tip:tip,nxt:nxt,
+  LCTX={late:late,neg:R.neg,kal:kal,limit:limit,spent:spent,cr:cr,norm:normF,tip:tip,nxt:nxt,
     cpr:R.cpr,fpr:Math.max(0,R.pr-R.cpr)+S.fixed,debtEff:Math.max(0,norm-R.ln),payEff:Math.max(0,R.ln-limit-cr),rec:rec,cardNow:S.cardMode!="due"&&debtAll>0,defer:S.cardMode=="due"&&S.cards.length?defer:0,
     anyDebt:!!(S.pay.length||S.fixed||debtTot),rate:rate,endBal:endBal,end:R.end,done:S.done&&S.done.d==ts?S.done.txt:"",
     ki:KI,kiDone:S.kiDone&&S.kiDone.d==ts&&S.kiDone.a>=1?S.kiDone.a:0,soon:soon,bal:S.bal};
@@ -936,18 +965,47 @@ function show(){
     }
     /* ödeme günü hatırlatması */
     if(MSG2){h+='<div class="card"><span class="good">✓ '+MSG2+'</span></div>';MSG2=""}
+    if(SVERR)h+='<div class="card" style="border-color:var(--bad)"><b>Kaydedilemiyor</b><p class="lab" style="margin:4px 0 0">Tarayıcı bu sayfanın veri saklamasına izin vermiyor (gizli sekme ya da dolu depolama olabilir). Sayfayı kapatırsan değişikliklerin kaybolur; Ayarlar’dan yedeği kopyalayıp sakla.</p></div>';
+    if(S.bal<-0.5)h+='<div class="card" style="border-color:var(--bad)"><b>Elindeki para eksi görünüyor: '+tl(S.bal)+'</b><p class="lab" style="margin:4px 0 0">Gerçekte eksiye düşmediysen bir kayıt hatalı. Kendiliğinden düşülen bir ödemeyi yapmadıysan aşağıdan “Ödemedim” de, ya da Ayarlar’dan gerçek bakiyeni yaz.</p></div>';
+    if(S.auto.length)h+='<section class="card"><div class="hd">Kendiliğinden işlenenler</div><p class="lab" style="margin:-6px 0 4px">Günü gelen gelir ve ödemeler bakiyene işlendi. Gerçekleşmediyse düzelt.</p>'
+      +S.auto.map(function(x,i){return '<div class="it"><span>'+(x.k=="in"?'↙ ':'↗ ')+esc(x.n)+' · <b class="num">'+tl(x.a)+'</b> <span class="lab tiny">'+dm(pd(x.d))+'</span></span><button class="ghost" data-au="'+i+'">'+(x.k=="in"?'Henüz yatmadı':'Ödemedim')+'</button></div>'}).join("")+'</section>';
+    var dueE=S.exp.filter(function(e){return e.d<=ts});
+    if(dueE.length)h+='<section class="card"><div class="hd">Bekleyenler</div>'+dueE.map(function(e){var i=S.exp.indexOf(e);
+      return e.o?'<div class="it"><span>'+esc(e.n||"Ödeme")+': '+tl(e.a)+' ödedin mi?</span><span><button data-ep="'+i+'">Ödedim</button> <button class="ghost" data-es="'+i+'">Sil</button></span></div>'
+               :'<div class="it"><span>'+esc(e.n||"Para")+': '+tl(e.a)+' geldi mi?</span><span><button data-eg="'+i+'">Geldi</button> <button class="ghost" data-es="'+i+'">Gelmeyecek</button></span></div>'}).join("")
+      +'<p class="note">Gelecek para “Geldi” diyene kadar limitine katılmaz; ödeyeceğin para limitinden ayrılmış durur.</p></section>';
+    var bkAge=df(pd(S.bk||S.since),t);
+    if(bkAge>=30&&S.spend.length>=5&&!(S.bkSn&&S.bkSn>ts))h+='<div class="card"><b>Yedek alma zamanı</b><p class="lab" style="margin:4px 0 10px">'+(S.bk?'Son yedeğin '+bkAge+' gün önce.':'Henüz hiç yedek almadın.')+' Bilgilerin sadece bu cihazda; tarayıcı verisi silinirse geri gelmez.</p><div class="add"><button data-tab="ayarlar">Yedek al</button><button class="ghost" id="bksn">Sonra hatırlat</button></div></div>';
     dueT.forEach(function(o){var ok=S.bal>=o.a;
       h+='<section class="card" style="border-color:'+(o.late||!ok?'var(--bad)':'var(--acc)')+'"><b>💳 '+(o.late?esc(o.c.n)+' ödemesi gecikti':'Bugün '+esc(o.c.n)+' ekstresinin son ödeme günü')+'</b>'
         +'<p class="lab" style="margin:4px 0 10px">Ödenecek: <b>'+tl(o.a)+'</b>'+(o.c.plan!="full"?' (planına göre; bankanın asgarisi '+tl(o.c.minDue)+')':'')+'. '
         +(ok?'Parası elinde hazır, ödemeyi unutma. Bankandan ödedikten sonra buraya da kaydet.':'<span style="color:var(--bad)">Elindeki para yetmiyor: '+tl(o.a-S.bal)+' eksik.</span>')+'</p>'
-        +'<div class="add"><button data-pdn="'+o.c.id+'">Ödedim · '+tl(o.a)+'</button><button class="ghost" data-tab="kartlar">Farklı tutar</button></div></section>'});
+        +'<div class="add">'+(ok?'<button data-pdn="'+o.c.id+'">Ödedim · '+tl(o.a)+'</button>':'')+'<button class="'+(ok?'ghost':'soft')+'" data-tab="kartlar">'+(ok?'Farklı tutar':'Ödeyebildiğin kadarını kaydet')+'</button></div></section>'});
     var kenarBox=R.kenar>=50?'<section class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>+ Kenardaki para</b><div class="lab" style="margin-top:2px">Bu dönemin normal harcamasından fazla kalan para. Günlük limitine katılmıyor, kenarda duruyor.</div></div><b class="num" style="font-size:1.35rem;white-space:nowrap;color:var(--ok)">+'+tl(R.kenar)+'</b></section>':'';
     var resvLine=resv>=1?'<p class="note" style="margin-top:14px">'
       +(S.bal-resv>=0?'Serbest <b>'+tl(S.bal-resv)+'</b> · '+tl(resv)+' kart ödemesine ayrıldı'
                      :'<span style="color:var(--bad)">Kart borcun elindeki paradan <b>'+tl(resv-S.bal)+'</b> fazla</span> · fark gelecek paralarından ödenecek')+'</p>':'';
-    h+='<section class="card"><div id="hero">'+heroHTML(LCTX,now)+'</div>'+resvLine+kbox+plan+'</section>'+kenarBox;
+    var bnd=R.cap<=Math.min(R.l1,R.l2,R.l3)?"cap":R.l1<=R.l2&&R.l1<=R.l3?"l1":R.l2<=R.l3?"l2":"l3";
+    var wr=function(a,b){return '<div class="row"><span>'+a+'</span><span class="num">'+b+'</span></div>'};
+    var whyBox='<details class="why"><summary>Bu rakam nasıl çıktı?</summary>'
+     +wr("Elindeki para"+(cash>=1?" (bugünkü nakit harcamadan önce)":""),tl(S.bal+cash))
+     +(rem>=1?wr("Dönem sonuna kadar yatacak","+"+tl(rem)):"")
+     +(R.pr>=1?wr("Dönem içindeki ödemeler","−"+tl(R.pr)):"")
+     +(S.fixed>=1?wr("Bu dönem ayrıca ayrılan","−"+tl(S.fixed)):"")
+     +(R.debt>=1?wr("Kart borcu için ayrılan","−"+tl(R.debt)):"")
+     +(od>=1?wr("Vadesi gelen ödeyeceğin","−"+tl(od)):"")
+     +wr("<b>Dönemde harcanabilir</b>","<b>"+tl(avail)+"</b>")
+     +(S.res>0&&avail>0?wr("Acil payı (%"+S.res+")","−"+tl(avail*S.res/100)):"")
+     +wr("Dönem sonuna ("+dm(R.end)+")",left+" gün")
+     +(cr>=1?wr("Dünden devreden aşım","−"+tl(cr)):"")
+     +'<p class="note">'+{l1:"Kalan para kalan günlere eşit bölündü: günde "+tl(Math.max(0,R.l1))+".",
+        l2:"Sıradaki paran "+dm(nxt.d)+" tarihinde yatıyor. O güne kadar ("+toNext+" gün) elindeki parayla idare etmen gerektiği için limit günde "+tl(Math.max(0,R.l2))+" ile sınırlı.",
+        l3:"Sonraki dönemde yatacak para ve ödemeler de hesaba katıldı; ileride sıkışmaman için limit günde "+tl(Math.max(0,R.l3))+" tutuldu.",
+        cap:"Limit, normal bir gününün (aylık gelirinin günlük payı: "+tl(R.cap)+") üstüne çıkmaz. Fazlası kenarda birikir."}[bnd]+'</p></details>';
+    h+='<section class="card"><div id="hero">'+heroHTML(LCTX,now)+'</div>'+resvLine+whyBox+kbox+plan+'</section>'+kenarBox;
 
-    h+='<section class="card"><div class="hd">Harcama ekle</div><div class="add"><input id="a" inputmode="decimal" placeholder="Tutar (TL)" aria-label="Harcama tutarı">'
+    var ydk=ymd(ad(t,-1)),lst=SDY?S.spend.filter(function(x){return x.d==ydk}):today;
+    h+='<section class="card"><div class="hd">Harcama ekle'+(SDY?' · dün ('+dm(ad(t,-1))+')':'')+'</div><div class="add"><input id="a" inputmode="decimal" placeholder="Tutar (TL)" aria-label="Harcama tutarı">'
      +(S.cards.length?'<select id="pm" aria-label="Ödeme yöntemi"><option value="">💵 Nakit</option>'+S.cards.map(function(c){return '<option value="'+c.id+'"'+(c.id===(KI&&!KI.stop?KI.id:S.defCard)?' selected':'')+'>💳 '+esc(c.n)+'</option>'}).join("")+'</select>':"")
      +'<button id="ad">Ekle</button></div>';
     /* hızlı butonlar: son 70 günde en az 2 kez girdiğin aynı tutar+kategori */
@@ -955,17 +1013,18 @@ function show(){
     var qk=Object.keys(fq).filter(function(k){return fq[k]>=2}).sort(function(a,b){return fq[b]-fq[a]}).slice(0,6);
     if(qk.length)h+='<div class="chips" style="padding:12px 0 4px">'+qk.map(function(k){var p=k.split("|");return '<button class="chip q" data-qa="'+p[1]+'" data-qc="'+esc(p[0])+'">+ '+(p[0]?esc(p[0])+' ':'')+tl(+p[1])+'</button>'}).join("")+'</div>';
     else if(S.spend.length<20)h+='<p class="note">Sık girdiğin tutarlar burada tek dokunuşluk butona dönüşecek.</p>';
-    if(today.length)h+='<div style="margin-top:10px">';
-    today.forEach(function(x){
+    if(lst.length)h+='<div style="margin-top:10px">';
+    lst.forEach(function(x){
       var i=S.spend.indexOf(x);
       h+='<div class="it"><span'+(x.c?'':' data-ct="'+i+'" role="button" tabindex="0" style="cursor:pointer"')+'>'+(x.ts?'<span class="tm">'+hm(x.ts)+'</span>':'')+'<b class="num">'+tl(x.a)+'</b>'+(x.c?' · '+esc(x.c):'')+(x.k!=null?' · 💳 '+esc(cname(x.k)):'')+(x.adv?' · <span class="lab">'+(x.adv<x.a?tl(x.adv)+' ':'')+'öne çekildi</span>':'')+(x.c?'':' <span class="lab tiny">· kategori ›</span>')+'</span><button class="ghost" data-i="'+i+'">Sil</button></div>';
       if(!x.c)h+='<div class="chips" id="ct'+i+'" hidden>'+CATS.map(function(c){return '<button class="chip" data-c="'+c+'" data-j="'+i+'">'+c+'</button>'}).join("")+'</div>';
     });
-    if(today.length)h+='</div>';
+    if(lst.length)h+='</div>';
+    if(SDY||ydk>=S.since)h+='<button class="ghost" id="sdy" style="margin-top:12px;padding:7px 12px;font-size:.88rem">'+(SDY?'‹ Bugüne dön':'Dün unuttuğum bir harcama var')+'</button>';
     h+='</section>';
 
     if(now.getHours()>=18||msg)h+='<section class="card" id="uzBox"><details'+(now.getHours()>=19||msg?' open':'')+'><summary>Akşam uzlaştırma</summary>'
-     +'<p class="lab">Bankandaki/cüzdandaki gerçek parayı yaz. Uygulamadan düşükse fark “Kayıt dışı” harcama olur.</p>'
+     +'<p class="lab">Bankandaki/cüzdandaki gerçek parayı yaz. Uygulamadan düşükse fark “Kayıt dışı” harcama olur. Beklediğin para yatmadıysa önce yukarıdan “Henüz yatmadı” de.</p>'
      +'<div class="add"><input id="ub" inputmode="decimal" placeholder="Gerçek bakiye"><button id="uz">Uzlaştır</button></div>'
      +(msg?'<p class="note">'+msg+'</p>':"")+'</details></section>';
   }
@@ -978,27 +1037,27 @@ function show(){
      +["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].map(function(x){return '<div class="h">'+x+'</div>'}).join("");
     for(var q=0;q<35;q++){
       var d=ad(s0,q),dk=ymd(d),dn=d.getDate(),ins=[],outs=[],v,cl="";
-      S.inc.forEach(function(i){if(dn==i[0])ins.push(tl(i[1]))});
+      S.inc.forEach(function(i){if(isD(d,i[0]))ins.push(tl(i[1]))});
       S.exp.forEach(function(e){if(e.d==dk)(e.o?outs:ins).push((e.o?"Verilecek: ":"")+esc(e.n||(e.o?"Arkadaş":"Beklenen"))+" "+tl(e.a))});
-      S.pay.forEach(function(p,i){if(p.card!=null||dn!=p.day)return;
+      S.pay.forEach(function(p,i){if(p.card!=null||!isD(d,p.day))return;
         if(dk>ts){if(p.left!=null&&(cu[i]||0)>=p.left)return;cu[i]=(cu[i]||0)+1}
         outs.push(esc(p.n||"Ödeme")+" "+tl(p.a)+(dk>ts&&p.left!=null&&cu[i]==p.left?" (son ödeme)":""))});
-      S.cards.forEach(function(c){if(dn==c.dd)outs.push(esc(c.n)+" son ödeme"+(c.plan!="full"?" (plana göre)":""))});
+      S.cards.forEach(function(c){if(isD(d,c.dd))outs.push(esc(c.n)+" son ödeme"+(c.plan!="full"?" (plana göre)":""))});
       var lbl=dn+" "+MON[d.getMonth()];
       if(dk<ts){var sp=S.spend.filter(function(x){return x.d==dk}).reduce(function(a,x){return a+x.a},0);v=sp?Math.round(sp).toLocaleString("tr-TR"):"";cl="past";lbl+=" · harcanan "+tl(sp)}
       else{var lv=dk==ts?limit:P[dk],kv=dk==ts?(KI&&!KI.stop?KI.kd:0):(PK[dk]||0);v=Math.round(lv+kv).toLocaleString("tr-TR");if(!(lv+kv))cl="zero";
         lbl+=" · limit "+tl(lv)+(kv?" + kartla "+tl(kv):"")+(dk==ts?" (bugün)":"")}
       if(dk==ts)cl+=" today";
-      if(dn==S.ps&&dk>ts)lbl+=" · yeni dönem başlar";
+      if(isD(d,S.ps)&&dk>ts)lbl+=" · yeni dönem başlar";
       if(ins.length)lbl+=" · Gelir: "+ins.join(", ");
       if(outs.length)lbl+=" · Ödeme: "+outs.join(", ");
       CD[dk]=lbl;
       /* ödeme günü açıklaması: o gün elindeki para, ödenecekler, kalan ve limite etkisi */
       var dayLim=dk==ts?limit:P[dk],prevLim=dk==ts?null:(ymd(ad(d,-1))==ts?limit:P[ymd(ad(d,-1))]),ex="";
       if(dk==ts){
-        var tOut=[];S.cards.forEach(function(c){var x=dueNow(c);if(c.dd==dn&&x>=1)tOut.push({n:c.n+" ekstresi",a:x})});
+        var tOut=[];S.cards.forEach(function(c){var x=dueNow(c);if(isD(d,c.dd)&&x>=1)tOut.push({n:c.n+" ekstresi",a:x})});
         S.exp.forEach(function(e){if(e.o&&e.d<=ts)tOut.push({n:"Verilecek: "+(e.n||"arkadaş"),a:e.a})});
-        var auto=S.pay.filter(function(p){return p.card==null&&p.day==dn});
+        var auto=S.pay.filter(function(p){return p.card==null&&isD(d,p.day)});
         if(tOut.length||auto.length){var tt=tOut.reduce(function(a,o){return a+o.a},0);
           ex=(tOut.length?'<b>Bugün ödenecek: '+tOut.map(function(o){return esc(o.n)+' '+tl(o.a)}).join(", ")+'</b><br>Elindeki para <b>'+tl(S.bal)+'</b>. Ödeyince <b>'+tl(S.bal-tt)+'</b> kalır.'+(S.bal-tt<0?' <span style="color:var(--bad)">Bu ödeme için '+tl(tt-S.bal)+' eksik.</span>':''):'')
            +(auto.length?(tOut.length?'<br>':'')+auto.map(function(p){return esc(p.n||"Ödeme")+' '+tl(p.a)}).join(", ")+' bugün elindeki paradan düşüldü.':'')
@@ -1021,8 +1080,8 @@ function show(){
     if(rate>0){
       var b=S.bal-S.fixed-debtTot-od,dd=t,fu={};   /* kart borcu zaten harcanmış para */
       for(var q2=1;q2<=60;q2++){
-        dd=ad(t,q2);S.inc.forEach(function(i){if(dd.getDate()==i[0])b+=i[1]});b-=payOn(dd,fu);
-        S.cards.forEach(function(c){if(dd.getDate()==c.sd)b-=tkOn(c.id,fu)});
+        dd=ad(t,q2);S.inc.forEach(function(i){if(isD(dd,i[0]))b+=i[1]});b-=payOn(dd,fu);
+        S.cards.forEach(function(c){if(isD(dd,c.sd))b-=tkOn(c.id,fu)});
         var dk2=ymd(dd);S.exp.forEach(function(e){if(e.o&&e.d==dk2)b-=e.a});
         b-=rate;if(b<0)break;
       }
@@ -1037,6 +1096,10 @@ function show(){
      +(R.kenar>=50?'<div class="row"><span>Kenardaki para</span><span class="num good">+'+tl(R.kenar)+'</span></div>':'')
      +genPays().filter(function(p){return p.left!=null}).map(function(p){return '<div class="row"><span>'+esc(p.n||"Ödeme")+'</span><span>'+p.left+' ödeme kaldı · son '+mY(payEnd(p))+'</span></div>'}).join("")
      +fc+'</section>';
+    var cg={},cgT=0;S.spend.forEach(function(x){if(df(pd(x.d),t)<=30){var k=x.c||"Kategorisiz";cg[k]=(cg[k]||0)+x.a;cgT+=x.a}});
+    if(cgT>=1)h+='<section class="card"><div class="hd">Para nereye gitti?</div><div class="lab" style="margin:-6px 0 6px">Son 30 gün · toplam '+tl(cgT)+'</div>'
+      +Object.keys(cg).sort(function(a,b){return cg[b]-cg[a]}).map(function(k){return '<div class="row"><span>'+esc(k)+'</span><span><b class="num">'+tl(cg[k])+'</b> <span class="lab tiny">%'+Math.round(cg[k]/cgT*100)+'</span></span></div>'}).join("")
+      +(cg["Kategorisiz"]?'<p class="note">Bugün sekmesinde harcamaya dokunup kategori seçersen burada ayrışır.</p>':'')+'</section>';
 
     var due=S.exp.filter(function(e){return e.d<=ts}),fut=S.exp.filter(function(e){return e.d>ts});
     h+='<section class="card"><div class="hd">Arkadaşlarla para</div><div class="lab" style="margin:-6px 0 6px">Aile, arkadaş, ortak hesap…</div>';
@@ -1070,7 +1133,7 @@ function show(){
          +'<div class="row"><span>Kalan taksitler</span><span><b class="num">'+tl(ik)+'</b></span></div>'
          +planBox(c)
          +(tks.length?'<ul class="tks">'+tks.map(function(p){return '<li><span>'+esc(p.n)+'</span><span>'+tl(p.a)+' × '+(p.left==null?'süresiz':p.left+' ay · son '+mY(payEnd(p)))+'</span></li>'}).join("")+'</ul>':'')
-         +'<div class="inc" style="margin-top:12px"><input id="cp'+k+'" inputmode="decimal" placeholder="Ödenen tutar" value="'+(dueNow(c)>0?Math.round(dueNow(c)):"")+'" aria-label="'+esc(c.n)+' için ödenen tutar"><button data-cp="'+k+'">Borç öde</button></div>'
+         +'<div class="inc" style="margin-top:12px"><input id="cp'+k+'" inputmode="decimal" placeholder="Ödenen tutar" value="'+(dueNow(c)>0?Math.round(dueNow(c)):"")+'" aria-label="'+esc(c.n)+' için ödenen tutar"><button data-cp="'+k+'">Borç öde</button></div><p class="warn" id="cpe'+k+'" hidden></p>'
          +'<div class="acts"><button class="soft" data-ke="'+k+'">Düzenle</button><button class="ghost" data-kd="'+k+'">Sil</button></div>';
         if(DEL===c.id)h+='<div class="confirm" role="alert"><b>'+esc(c.n)+' silinsin mi?</b><p class="lab" style="margin:4px 0 10px">Kartın borcu'+(tks.length?' ve '+tks.length+' taksiti':'')+' de hesaptan çıkar. Geri alınamaz.</p>'
           +'<div class="add"><button class="danger" id="kdy">Evet, sil</button><button class="ghost" id="kdn">Vazgeç</button></div></div>';
@@ -1084,13 +1147,13 @@ function show(){
   if(TAB=="ayarlar"){
     var sum=S.inc.reduce(function(s,i){return s+i[1]},0),gp=genPays();
     h+='<div class="top"><h1>Ayarlar</h1></div>'
-     +'<section class="card"><div class="hd">Gelir günleri</div><div class="lab">Ayın günü (1–28) ve tutar · toplam '+tl(sum)+'</div>'
+     +'<section class="card"><div class="hd">Gelir günleri</div><div class="lab">Ayın günü (1–31) ve tutar · toplam '+tl(sum)+'</div>'
      +'<div class="colh" style="margin-top:10px"><span>Gün</span><span>Tutar</span></div>'
-     +S.inc.map(function(i,k){return '<div class="inc"><input class="dd" id="d'+k+'" inputmode="numeric" value="'+i[0]+'" aria-label="Gün"><input id="m'+k+'" inputmode="decimal" value="'+i[1]+'" aria-label="Tutar"><button class="ghost" data-r="'+k+'" aria-label="Sil">×</button></div>'}).join("")
+     +S.inc.map(function(i,k){return '<div class="inc"><input class="dd" id="d'+k+'" inputmode="numeric" value="'+i[0]+'" aria-label="Gün"><input id="m'+k+'" inputmode="decimal" value="'+nv(i[1])+'" aria-label="Tutar"><button class="ghost" data-r="'+k+'" aria-label="Sil">×</button></div>'}).join("")
      +'<button class="ghost" id="ai">+ Gelir günü ekle</button></section>'
      +'<section class="card"><div class="hd">Her ay düzenli ödemeler</div><div class="lab">Kira, fatura, abonelik… Kart taksitleri Kartlar sekmesinde.</div>'
      +(gp.length?'<div class="colh pq" style="margin-top:10px"><span>Ad</span><span>Gün</span><span>Tutar</span><span>Kalan</span></div>':'')
-     +gp.map(function(p,k){return '<div class="inc"><input id="pn'+k+'" value="'+esc(p.n)+'" placeholder="Ad"><input class="sm" id="pd'+k+'" inputmode="numeric" value="'+p.day+'" aria-label="Gün"><input class="sm" id="pa'+k+'" inputmode="decimal" value="'+p.a+'" aria-label="Tutar"><input class="sm" id="pl'+k+'" inputmode="numeric" value="'+(p.left==null?'':p.left)+'" placeholder="–" aria-label="Kalan ödeme sayısı"><button class="ghost" data-pr="'+k+'" aria-label="Sil">×</button></div>'
+     +gp.map(function(p,k){return '<div class="inc"><input id="pn'+k+'" value="'+esc(p.n)+'" placeholder="Ad"><input class="sm" id="pd'+k+'" inputmode="numeric" value="'+p.day+'" aria-label="Gün"><input class="sm" id="pa'+k+'" inputmode="decimal" value="'+nv(p.a)+'" aria-label="Tutar"><input class="sm" id="pl'+k+'" inputmode="numeric" value="'+(p.left==null?'':p.left)+'" placeholder="–" aria-label="Kalan ödeme sayısı"><button class="ghost" data-pr="'+k+'" aria-label="Sil">×</button></div>'
        +(p.left!=null?'<div class="note" style="margin:-2px 0 4px">'+p.left+' ödeme kaldı · son ödeme '+dm(payEnd(p))+' '+payEnd(p).getFullYear()+'</div>':'')}).join("")
      +(gp.length?'<div class="note">Kalan boşsa her ay devam eder.</div>':'')
      +'<button class="ghost" id="ap" style="margin-top:8px">+ Ödeme ekle</button></section>'
@@ -1112,15 +1175,22 @@ function show(){
 }
 
 function bind(ts,t,over,pool,pl,K){
-  all("[data-tab]",function(b){TAB=b.dataset.tab;DEL=null;show();window.scrollTo(0,0)});
+  all("[data-tab]",function(b){TAB=b.dataset.tab;DEL=null;SDY=0;show();window.scrollTo(0,0)});
+  on("sdy",function(){SDY=SDY?0:1;show()});
+  on("bksn",function(){S.bkSn=ymd(ad(t,7));sv();show()});
+  /* kendiliğinden işlenen gelir/ödeme gerçekleşmediyse geri al, "bekleyen" olarak tut */
+  all("[data-au]",function(b){var x=S.auto.splice(+b.dataset.au,1)[0];if(!x)return;
+    if(x.k=="in"){S.bal-=x.a;S.exp.push({n:"Geciken gelir",a:x.a,d:x.d,o:false});MSG2=tl(x.a)+" bakiyenden geri alındı. Yatınca “Geldi” de."}
+    else{S.bal+=x.a;S.exp.push({n:x.n,a:x.a,d:x.d,o:true});MSG2=esc(x.n)+" ("+tl(x.a)+") bakiyene geri eklendi. Ödeyince “Ödedim” de."}
+    sv();show()});
   /* Bugün */
   function addSpend(v,cat){
-    var pm=g("pm"),c=pm&&pm.value?S.cards.filter(function(c){return String(c.id)==pm.value})[0]:null,x={d:ts,a:v,ts:Date.now()};
+    var pm=g("pm"),c=pm&&pm.value?S.cards.filter(function(c){return String(c.id)==pm.value})[0]:null,x=SDY?{d:ymd(ad(t,-1)),a:v}:{d:ts,a:v,ts:Date.now()};
     if(cat)x.c=cat;
     if(c){x.k=c.id;c.cur+=v;c.nw=(c.nw||0)+v;                 /* kart: bakiye düşmez, borç artar */
-      if(K.ki&&!K.ki.stop&&c.id===K.ki.id&&K.ki.rem>0){x.adv=Math.min(v,K.ki.rem);c.adv=(c.adv||0)+x.adv}}   /* kartla idare payı: öne çekilir */
+      if(!SDY&&K.ki&&!K.ki.stop&&c.id===K.ki.id&&K.ki.rem>0){x.adv=Math.min(v,K.ki.rem);c.adv=(c.adv||0)+x.adv}}   /* kartla idare payı: öne çekilir */
     else S.bal-=v;
-    S.spend.push(x);sv();show();
+    S.spend.push(x);if(SDY){SDY=0;MSG2="Dünkü harcama eklendi: "+tl(v)+"."}sv();show();
   }
   on("ad",function(){var v=num(val("a"));if(v===null||v<=0)return;addSpend(v)});
   all("[data-qa]",function(b){addSpend(+b.dataset.qa,b.dataset.qc)});
@@ -1181,8 +1251,10 @@ function bind(ts,t,over,pool,pl,K){
   on("tkU",function(){if(UNDO){S=JSON.parse(UNDO.snap);UNDO=null;TKMSG="Takla geri alındı.";sv();show();var b=g("tkBox");if(b)b.scrollIntoView()}});
   all("[data-ct]",function(b){var e=g("ct"+b.dataset.ct);if(e)e.hidden=!e.hidden});
   all("[data-cp]",function(b){
-    var c=S.cards[+b.dataset.cp],a=num(val("cp"+b.dataset.cp));if(!c||a===null||a<=0)return;payCard(c,a);sv();show()});
-  all("[data-pdn]",function(b){var c=card(+b.dataset.pdn);if(!c)return;payCard(c,dueNow(c));MSG2=esc(c.n)+" ödemesi kaydedildi.";sv();show()});
+    var c=S.cards[+b.dataset.cp],a=num(val("cp"+b.dataset.cp));if(!c||a===null||a<=0)return;
+    if(Math.min(a,c.stmt+c.cur)>S.bal+0.5){var w=g("cpe"+b.dataset.cp);w.textContent="Elinde "+tl(Math.max(0,S.bal))+" görünüyor; bundan fazlasını ödeyemezsin. Paran daha fazlaysa önce Ayarlar’dan gerçek bakiyeni yaz.";w.hidden=false;return}
+    payCard(c,a);sv();show()});
+  all("[data-pdn]",function(b){var c=card(+b.dataset.pdn);if(!c||dueNow(c)>S.bal+0.5)return;payCard(c,dueNow(c));MSG2=esc(c.n)+" ödemesi kaydedildi.";sv();show()});
   /* Ayarlar */
   on("ai",function(){collect();S.inc.push([15,0]);sv();show()});
   all("[data-r]",function(b){collect();S.inc.splice(+b.dataset.r,1);sv();show()});
