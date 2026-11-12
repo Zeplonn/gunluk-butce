@@ -762,9 +762,13 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   /* kart borcunu ikiye ayır: yeni (uygulamadan kartla harcanan, en son yapılan = önce ekstreye girmemişte) ve eski */
   var kiE=!!(S.ki&&ymd(D)<S.ki.end);                                          /* kartla idare dönemi içinde mi */
   var cs=cards.map(function(c){var pl=c.plan&&c.plan!="full"&&!c.late,rs=pl?Math.min(c.rs||0,c.s):0,ru=pl?Math.min(c.ru||0,c.u):0,
-      nw=Math.min(c.nw||0,c.s+c.u-rs-ru),nu=Math.min(c.u-ru,nw),ns=nw-nu;   /* rs/ru: plana bağlı döner borç */
-    return {id:c.id,s:c.late?0:c.s,u:c.u,sd:c.sd,dd:c.dd,os:c.late?0:Math.max(0,c.s-ns-rs),ou:Math.max(0,c.u-nu-ru),nn:c.late?nu:nw,
-      ex:kiE?Math.min(c.adv||0,(c.late?0:c.s)+c.u):0,                       /* ex: öne çekilen, bu dönemden düşülmez */
+      nw=Math.min(c.nw||0,c.s+c.u-rs-ru),nu=Math.min(c.u-ru,nw),ns=nw-nu,   /* rs/ru: plana bağlı döner borç */
+      ex=kiE?Math.min(c.adv||0,(c.late?0:c.s)+c.u):0,
+      /* ödeme gününde modu: yeni kart harcaması da eski borç gibi son ödeme gününde düşer (maaştan sonra ödenecekse bugünkü paradan ayrılmaz).
+         dn: ödeme gününe bırakılan yeni harcama (kartla idarede öne çekilen kısım hariç); dnu ekstreye girmemiş, dns ekstrede olan kısmı */
+      dn=due?Math.max(0,(c.late?nu:nw)-ex):0,dnu=Math.min(nu,dn),dns=c.late?0:dn-dnu;
+    return {id:c.id,s:c.late?0:c.s,u:c.u,sd:c.sd,dd:c.dd,os:c.late?0:Math.max(0,c.s-ns-rs+dns),ou:Math.max(0,c.u-nu-ru+dnu),nn:(c.late?nu:nw)-dn,
+      ex:ex,                                                                 /* ex: öne çekilen, bu dönemden düşülmez */
       pl:pl,rs:rs,ru:ru,ie:c.ie||0,amr:c.amr||0.2,xt:c.xt||0,plan:c.plan,ri:!!c.ri,pd:!!c.pd}});
   var late=cards.reduce(function(a,c){return a+(c.late?c.s:0)},0);          /* gecikmiş ekstre: hemen ödenmeli */
   /* temkinli: tüm kart borcu harcanmış sayılır · ödeme gününde: sadece yeni harcamalar hemen, eskisi ödeme gününde */
@@ -773,12 +777,13 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   cs.forEach(function(c){if(c.pl&&isD(D,c.dd)&&c.rs>0&&!c.pd){var q=payR(c.plan,c.rs,c.amr,c.xt);late+=q;c.s-=q;c.rs-=q}});
   var debt=late+cs.reduce(function(a,c){return a+Math.max(0,(due?c.nn:c.s+c.u-c.rs-c.ru)-c.ex)},0);
   /* ödeme gününde modunda: son ödeme günü bugünse eski ekstre borcu bugün ayrılır (bugün ödenmiş sayılır) */
-  if(due)cs.forEach(function(c){if(isD(D,c.dd)&&c.os>0){debt+=c.os;c.s-=c.os;c.os=0}});
+  var td=0;   /* td: bugün son ödeme günü olan kartın bugün ödenecek kısmı; sıradaki paraya kadar olan hesaptan (l2, l3) da düşülür */
+  if(due)cs.forEach(function(c){if(isD(D,c.dd)&&c.os>0){debt+=c.os;td+=c.os;c.s-=c.os;c.os=0}});
   var zb=bal-sp-late-od;if(zb<0)neg={d:D,m:-zb};
   /* ileriye bakış: bir sonraki dönemin sonuna kadar her para yatma gününde
      "o güne kadar elimdeki para, o güne kadarki ödemelerle yeter mi?" kontrolü.
      En sıkı olanı limiti belirler; böylece dönem sonrasındaki kıt günler önceden görülür. */
-  var end2=pEnd(end),cf=bal+cr-late-od,l3=Infinity,cpr=0;   /* cpr: dönem içinde düşülen kart ödemeleri (taksit, plan, eski borç) */
+  var end2=pEnd(end),cf=bal+cr-late-od-td,l3=Infinity,cpr=0;   /* cpr: dönem içinde düşülen kart ödemeleri (taksit, plan, eski borç) */
   for(var k=1;k<=70;k++){
     d=ad(D,k);
     var inc=0,pay=0,cpay=0,dk=ymd(d),be=d<end,pn0=!nxt;
@@ -802,10 +807,10 @@ function L(D,bal,cards,ru,cr,fx,sp,u0,od){
   }
   if(!nxt)nxt={d:end,a:0};
   var left=df(D,end),toNext=df(D,nxt.d),before=bal+cr,avail=before+rem-fx-pr-debt-od;
-  var l1=(avail+ru)*(1-S.res/100)/left,l2=(before-pn-late-od)/toNext;          /* dönem sonu ve sıradaki para */
+  var l1=(avail+ru)*(1-S.res/100)/left,l2=(before-pn-late-od-td)/toNext;          /* dönem sonu ve sıradaki para */
   /* tavan: limit normal bir günün (aylık gelirin günlük payı) üstüne çıkmaz; fazlası "kenardaki para" olur, sonraki döneme yayılmaz */
   var cap=tipDay()>0?tipDay():Infinity,lm=Math.min(l1,l2,l3),kenar=cap<lm?(lm-cap)*left:0;
-  var ln=Math.max(0,Math.floor(Math.min((before+rem-debt-od)*(1-S.res/100)/left,(before-late-od)/toNext,cap)));   /* sabit ödemesiz limit (ışık için) */
+  var ln=Math.max(0,Math.floor(Math.min((before+rem-debt-od)*(1-S.res/100)/left,(before-late-od-td)/toNext,cap)));   /* sabit ödemesiz limit (ışık için) */
   return {l1:l1,l2:l2,l3:l3,cap:cap,pr:pr,cpr:cpr,kenar:kenar,cres:debt+cpr,limit:Math.max(0,Math.floor(Math.min(lm,cap))-cr),end:end,nxt:nxt,left:left,toNext:toNext,rem:rem,neg:neg,debt:debt,late:late,avail:avail,ln:ln};
 }
 /* ---- Takvim tahmini: her gün limitine uyarsan sonraki günlerin limiti ---- */
@@ -908,7 +913,8 @@ function lampInfo(X,now){
     else if(!X.spent)subs.push("🌙 Gün sonu: bugün harcama girmedin. Gerçekten harcamadıysan "+tl(cap)+" kenarda kaldı.");
     else subs.push("🌙 Gün sonu: limitinin %"+Math.round(r*100)+" kadarını kullandın, "+tl(kalC)+" kenarda kaldı.");
   }
-  if(X.kiDone)subs.push('<span class="good">Kartla idare dönemi bitti. Öne çekilen '+tl(X.kiDone)+' bu dönemin günlük limitine yayıldı.</span>');
+  /* ödeme gününde modunda öne çekilen tutar yeni döneme yayılmaz, kartın son ödeme gününde düşer */
+  if(X.kiDone)subs.push('<span class="good">Kartla idare dönemi bitti. Öne çekilen '+tl(X.kiDone)+(S.cardMode=="due"?' kartın son ödeme gününde düşülecek.':' bu dönemin günlük limitine yayıldı.')+'</span>');
   /* yaklaşan kart ödemesi (1–2 gün) */
   (X.soon||[]).forEach(function(o){
     subs.push("💳 "+dm(o.d)+" ("+(o.k==1?"yarın":o.k+" gün sonra")+") "+esc(o.n)+" ödemen var: "+tl(o.a)+". "
@@ -918,7 +924,7 @@ function lampInfo(X,now){
 }
 var CMTXT={
  now:["Hemen ayır (temkinli)","Kart borcunun tamamı şimdiki parandan ayrılır. Beklediğin para gecikse bile kart ödemesi hazır olur, ama limitin daha düşük çıkar."],
- due:["Ödeme gününde düş (gerçekçi)","Kartı eklediğinde var olan borç, son ödeme gününün düştüğü dönemden düşer. Kartla yaptığın yeni harcamalar yine hemen limitinden düşer."]};
+ due:["Ödeme gününde düş (gerçekçi)","Kart borcu, son ödeme gününün düştüğü dönemden düşer. Kartla yaptığın harcama o günün limitinden düşer; borcu son ödeme gününde ödenir."]};
 function cmButtons(cur,attr){return '<div class="stack">'+["now","due"].map(function(k){return '<button data-'+attr+'="'+k+'"'+pick(k,cur)+'><b>'+CMTXT[k][0]+'</b><br><span style="font-weight:500;font-size:.88rem;opacity:.8">'+CMTXT[k][1]+'</span></button>'}).join("")+'</div>'}
 var LCOL={ok:"#3fae6a",warn:"#f2b42c",slow:"#ef7d32",bad:"#e45a5a"};
 function heroHTML(X,now){
