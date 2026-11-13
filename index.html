@@ -14,12 +14,13 @@
 --acc:#ff8f6b;--accink:#1c1714;--acc2:#432b22;--ok:#5cc489;--okt:#1f3326;--bad:#ff7b72;--badt:#3d2222;--shadow:none}}
 :root[data-theme="koyu"]{color-scheme:dark;--bg:#1c1714;--card:#27211c;--ink:#f3e9df;--mute:#b6a598;--line:#3a312a;--soft:#312923;
 --acc:#ff8f6b;--accink:#1c1714;--acc2:#432b22;--ok:#5cc489;--okt:#1f3326;--bad:#ff7b72;--badt:#3d2222;--shadow:none}
-/* ---- Seçilebilen zemin renkleri (Ayarlar → Görünüm). Seçilmezse krem, telefon koyu moddaysa koyu ---- */
+/* ---- Seçilebilen zemin renkleri (Ayarlar → Görünüm). Seçilmezse krem, telefon koyu moddaysa koyu.
+   0.1.13: tonlar koyulaştırıldı (parlak zemin göz alıyordu); kartlar saf beyaz değil, zemine yakın açık ton ---- */
 :root[data-theme="krem"]{color-scheme:light}
-:root[data-theme="beyaz"]{color-scheme:light;--bg:#f4f4f4;--card:#fff;--ink:#1f1f1f;--mute:#6b6b6b;--line:#e4e4e4;--soft:#f1f1f1;--shadow:0 2px 12px rgba(0,0,0,.06)}
-:root[data-theme="mavi"]{color-scheme:light;--bg:#edf3fa;--card:#fff;--ink:#1d2733;--mute:#5d6b7a;--line:#d9e4f0;--soft:#e7eff8;--acc:#2f6fb5;--acc2:#dde9f7;--shadow:0 2px 12px rgba(30,60,110,.07)}
-:root[data-theme="yesil"]{color-scheme:light;--bg:#eef6ef;--card:#fff;--ink:#1f2b22;--mute:#5f6f63;--line:#d9e8dc;--soft:#e6f1e8;--acc:#2f7d4f;--acc2:#dcefe2;--shadow:0 2px 12px rgba(30,90,50,.07)}
-:root[data-theme="pembe"]{color-scheme:light;--bg:#fbf0f3;--card:#fff;--ink:#2e1f24;--mute:#7a6168;--line:#f1dde3;--soft:#f8e8ed;--acc:#b8406a;--acc2:#f9dde7;--shadow:0 2px 12px rgba(120,40,70,.07)}
+:root[data-theme="beyaz"]{color-scheme:light;--bg:#dedede;--card:#f2f2f2;--ink:#1f1f1f;--mute:#595959;--line:#cfcfcf;--soft:#e4e4e4;--acc:#b44427;--acc2:#f3d9cd;--ok:#26774a;--bad:#b83232;--shadow:0 2px 10px rgba(0,0,0,.07)}
+:root[data-theme="mavi"]{color-scheme:light;--bg:#cfdcea;--card:#eef3f8;--ink:#1d2733;--mute:#4f5d6c;--line:#bccbdc;--soft:#dde7f1;--acc:#285f9c;--acc2:#cddcee;--ok:#26774a;--bad:#b83232;--shadow:0 2px 10px rgba(30,60,110,.08)}
+:root[data-theme="yesil"]{color-scheme:light;--bg:#cfe0d2;--card:#eef5ef;--ink:#1f2b22;--mute:#4f6054;--line:#bcd0c0;--soft:#dde9df;--acc:#276b43;--acc2:#cbe3d2;--ok:#26774a;--bad:#b83232;--shadow:0 2px 10px rgba(30,90,50,.08)}
+:root[data-theme="pembe"]{color-scheme:light;--bg:#ecd5db;--card:#f9eff2;--ink:#2e1f24;--mute:#6c535a;--line:#dcbfc8;--soft:#f1dfe4;--acc:#a23559;--acc2:#f1cfdb;--ok:#26774a;--bad:#b83232;--shadow:0 2px 10px rgba(120,40,70,.08)}
 .sw{display:flex;gap:10px;flex-wrap:wrap}
 .sw button{width:auto;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px;background:transparent;color:var(--mute);font-size:.82rem;font-weight:700;border:2px solid transparent;border-radius:14px}
 .sw button i{display:block;width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12)}
@@ -193,7 +194,7 @@ function val(id){return document.getElementById(id).value}
 function on(id,fn){var e=g(id);if(e)e.onclick=fn}
 function all(sel,fn){document.querySelectorAll(sel).forEach(function(b){b.onclick=function(){fn(b)}})}
 /* ---- Zemin rengi: S.th ("" = krem, telefona göre koyu) ---- */
-var TEMA=[["","Krem","#fbf5ee"],["beyaz","Beyaz","#f4f4f4"],["mavi","Mavi","#edf3fa"],["yesil","Yeşil","#eef6ef"],["pembe","Pembe","#fbf0f3"],["koyu","Koyu","#1c1714"]];
+var TEMA=[["","Krem","#fbf5ee"],["beyaz","Gri","#dedede"],["mavi","Mavi","#cfdcea"],["yesil","Yeşil","#cfe0d2"],["pembe","Pembe","#ecd5db"],["koyu","Koyu","#1c1714"]];   /* anahtar "beyaz" eski kayıtlar için aynı kaldı; 0.1.13'te tonlar koyulaştırıldı */
 function thApply(){var t=S&&S.th||"",r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
   var bg=getComputedStyle(document.body||r).backgroundColor;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute("content",bg)})}   /* PWA'da durum çubuğu rengi */
 function ld(){try{var r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
@@ -669,6 +670,9 @@ function cfView(){
     CF.c=readCard("cf");var e=checkCard(CF.c);if(e){g("cfe").textContent=e;return}
     var id=CF.id||Date.now(),old=CF.id?card(CF.id):null,r=makeCard(CF.c,id,old);
     if(old)S.cards[S.cards.indexOf(old)]=r.card;else S.cards.push(r.card);
+    /* formda olmayan alanlar (taksitli harcamanın toplamı, takla bağı) eski kayıttan korunur */
+    var oldP=cardPays(id);r.pays.forEach(function(q){var o=oldP.filter(function(o){return !o._m&&o.n===q.n&&Math.abs(o.a-q.a)<0.005&&(o.d0||null)===(q.d0||null)})[0];if(o){o._m=1;if(o.tot)q.tot=o.tot;if(o.tk!=null)q.tk=o.tk}});
+    oldP.forEach(function(o){delete o._m});
     S.pay=S.pay.filter(function(p){return p.card!==id}).concat(r.pays);   /* bu kartın taksitleri formdakilerle değişir */
     CF=null;TAB="kartlar";sv();show();
   });
@@ -1546,6 +1550,7 @@ S=ld();if(S){mig();show()}else setup();
  sw.register("sw.js",{updateViaCache:"none"}).then(function(r){document.addEventListener("visibilitychange",function(){if(!document.hidden)r.update().catch(function(){})})}).catch(function(){});
  sw.addEventListener("controllerchange",function(){if(!had||done)return;
   var go=function(){if(!done){done=true;location.reload()}},a=document.activeElement;
-  if((a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))||window.W||window.CF)document.addEventListener("visibilitychange",function(){if(document.hidden)go()});else go()})})</script>
+  var yaz=document.getElementById("a"),mesgul=(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))||window.W||window.CF||(yaz&&yaz.value)||document.querySelector("textarea,.confirm");
+  if(mesgul)document.addEventListener("visibilitychange",function(){if(document.hidden)go()});else go()})})</script>
 </body>
 </html>

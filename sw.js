@@ -1,13 +1,15 @@
 /* Günlük bütçe — çevrimdışı çalışma. Bilgiler (localStorage) burada değil, telefonda; bu dosya sadece uygulamanın dosyalarını saklar.
    Sayfa (index.html): önce internetten istenir (en çok 4 sn beklenir), gelmezse saklanan sürüm açılır → güncelleme hemen görünür, internetsiz de çalışır.
    Yazı tipi ve ikonlar: önce saklanan (değişmiyorlar). */
-var C="gb-0.1.12",FILES=["./","index.html","nunito.ttf","manifest.webmanifest","icons/icon-192.png","icons/apple-touch-icon.png"];
+var C="gb-0.1.13",FILES=["./","index.html","nunito.ttf","manifest.webmanifest","icons/icon-192.png","icons/apple-touch-icon.png"];
 self.addEventListener("install",function(e){e.waitUntil(caches.open(C).then(function(c){return c.addAll(FILES.map(function(f){return new Request(f,{cache:"reload"})}))}).then(function(){return self.skipWaiting()}))});
 self.addEventListener("activate",function(e){e.waitUntil(caches.keys().then(function(k){return Promise.all(k.filter(function(n){return n!==C}).map(function(n){return caches.delete(n)}))}).then(function(){return self.clients.claim()}))});
 self.addEventListener("fetch",function(e){
   var q=e.request,u=new URL(q.url);
   if(q.method!=="GET"||u.origin!==location.origin)return;
-  var page=q.mode==="navigate"||/\/(index\.html)?$/.test(u.pathname);
+  var page=/\/(index\.html)?$/.test(u.pathname);
+  /* yalnızca uygulamanın kendi dosyalarına karışılır: APK indirmesi (indir/), surum.json ve sw.js doğrudan internete gider, saklanmaz */
+  if(!page&&!/\/(nunito\.ttf|manifest\.webmanifest|icons\/[\w.-]+\.png)$/.test(u.pathname))return;
   e.respondWith(caches.open(C).then(function(c){
     if(page){   /* sayfa: internet önce */
       var net=fetch(q,{cache:"no-cache"}).then(function(r){if(r&&r.ok)c.put(q,r.clone());return r});
