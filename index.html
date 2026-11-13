@@ -1510,6 +1510,11 @@ setInterval(tick,60000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)tick()});
 S=ld();if(S){mig();show()}else setup();
 </script>
-<script>if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})</script>
+<script>if("serviceWorker" in navigator)window.addEventListener("load",function(){
+ var sw=navigator.serviceWorker,had=!!sw.controller,done=false;
+ sw.register("sw.js",{updateViaCache:"none"}).then(function(r){document.addEventListener("visibilitychange",function(){if(!document.hidden)r.update().catch(function(){})})}).catch(function(){});
+ sw.addEventListener("controllerchange",function(){if(!had||done)return;
+  var go=function(){if(!done){done=true;location.reload()}},a=document.activeElement;
+  if((a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))||window.W||window.CF)document.addEventListener("visibilitychange",function(){if(document.hidden)go()});else go()})})</script>
 </body>
 </html>
