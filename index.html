@@ -10,10 +10,20 @@
 :root{--bg:#fbf5ee;--card:#fff;--ink:#2b211c;--mute:#7a6a60;--line:#efe3d6;--soft:#f6ece2;
 --acc:#c24a2c;--accink:#fff;--acc2:#fde6dc;--ok:#2f8a55;--okt:#e2f3e8;--bad:#c93a3a;--badt:#fbe1e1;
 --shadow:0 2px 12px rgba(120,70,30,.07);color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1c1714;--card:#27211c;--ink:#f3e9df;--mute:#b6a598;--line:#3a312a;--soft:#312923;
+@media (prefers-color-scheme:dark){:root:not([data-theme]){color-scheme:dark;--bg:#1c1714;--card:#27211c;--ink:#f3e9df;--mute:#b6a598;--line:#3a312a;--soft:#312923;
 --acc:#ff8f6b;--accink:#1c1714;--acc2:#432b22;--ok:#5cc489;--okt:#1f3326;--bad:#ff7b72;--badt:#3d2222;--shadow:none}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#1c1714;--card:#27211c;--ink:#f3e9df;--mute:#b6a598;--line:#3a312a;--soft:#312923;
+:root[data-theme="koyu"]{color-scheme:dark;--bg:#1c1714;--card:#27211c;--ink:#f3e9df;--mute:#b6a598;--line:#3a312a;--soft:#312923;
 --acc:#ff8f6b;--accink:#1c1714;--acc2:#432b22;--ok:#5cc489;--okt:#1f3326;--bad:#ff7b72;--badt:#3d2222;--shadow:none}
+/* ---- Seçilebilen zemin renkleri (Ayarlar → Görünüm). Seçilmezse krem, telefon koyu moddaysa koyu ---- */
+:root[data-theme="krem"]{color-scheme:light}
+:root[data-theme="beyaz"]{color-scheme:light;--bg:#f4f4f4;--card:#fff;--ink:#1f1f1f;--mute:#6b6b6b;--line:#e4e4e4;--soft:#f1f1f1;--shadow:0 2px 12px rgba(0,0,0,.06)}
+:root[data-theme="mavi"]{color-scheme:light;--bg:#edf3fa;--card:#fff;--ink:#1d2733;--mute:#5d6b7a;--line:#d9e4f0;--soft:#e7eff8;--acc:#2f6fb5;--acc2:#dde9f7;--shadow:0 2px 12px rgba(30,60,110,.07)}
+:root[data-theme="yesil"]{color-scheme:light;--bg:#eef6ef;--card:#fff;--ink:#1f2b22;--mute:#5f6f63;--line:#d9e8dc;--soft:#e6f1e8;--acc:#2f7d4f;--acc2:#dcefe2;--shadow:0 2px 12px rgba(30,90,50,.07)}
+:root[data-theme="pembe"]{color-scheme:light;--bg:#fbf0f3;--card:#fff;--ink:#2e1f24;--mute:#7a6168;--line:#f1dde3;--soft:#f8e8ed;--acc:#b8406a;--acc2:#f9dde7;--shadow:0 2px 12px rgba(120,40,70,.07)}
+.sw{display:flex;gap:10px;flex-wrap:wrap}
+.sw button{width:auto;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px;background:transparent;color:var(--mute);font-size:.82rem;font-weight:700;border:2px solid transparent;border-radius:14px}
+.sw button i{display:block;width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12)}
+.sw button.on{border-color:var(--acc);color:var(--acc)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
@@ -182,6 +192,10 @@ function g(id){return document.getElementById(id)}
 function val(id){return document.getElementById(id).value}
 function on(id,fn){var e=g(id);if(e)e.onclick=fn}
 function all(sel,fn){document.querySelectorAll(sel).forEach(function(b){b.onclick=function(){fn(b)}})}
+/* ---- Zemin rengi: S.th ("" = krem, telefona göre koyu) ---- */
+var TEMA=[["","Krem","#fbf5ee"],["beyaz","Beyaz","#f4f4f4"],["mavi","Mavi","#edf3fa"],["yesil","Yeşil","#eef6ef"],["pembe","Pembe","#fbf0f3"],["koyu","Koyu","#1c1714"]];
+function thApply(){var t=S&&S.th||"",r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
+  var bg=getComputedStyle(document.body||r).backgroundColor;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute("content",bg)})}   /* PWA'da durum çubuğu rengi */
 function ld(){try{var r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
 function sv(){try{localStorage.setItem(KEY,JSON.stringify(S));SVERR=false}catch(e){SVERR=true}}
 /* ---- Yedek: bütün veri tek satırlık bir metin olur (BUTCE1: + base64). Metin cihazdan sadece kullanıcı kopyalarsa çıkar. ---- */
@@ -517,7 +531,7 @@ function mig(){
   S.tk.forEach(function(r){if(!card(r.from))r.rem=0});           /* kartı silinen taklanın faizi artık izlenmez */
   if(S.defCard===undefined)S.defCard=(S.cardAll&&S.cards.length)?S.cards[0].id:null;   /* varsayılan ödeme kartı */
   if(S.defCard!=null&&!card(S.defCard))S.defCard=null;
-  S.wkFlex=!!S.wkFlex;S.wkQ=!!S.wkQ;
+  S.wkFlex=!!S.wkFlex;S.wkQ=!!S.wkQ;S.th=TEMA.some(function(x){return x[0]===S.th})?S.th:"";
   /* kart borcu modu: "now" = tamamı hemen ayrılır (temkinli), "due" = eski borç son ödeme gününün döneminden düşer */
   S.cardMode=S.cardMode=="due"?"due":"now";S.cmQ=!!S.cmQ;
   S.cards.forEach(function(c){c.nw=Math.min(c.nw||0,c.stmt+c.cur);c.adv=Math.min(c.adv||0,c.stmt+c.cur);
@@ -1013,7 +1027,7 @@ function greet(){var h=new Date().getHours();return h<5?"İyi geceler":h<11?"Gü
 
 function show(){
   if(CF)return cfView();
-  catchUp();
+  catchUp();thApply();
   var t=t0(),ts=ymd(t),now=new Date(),msg=MSG;MSG="";DAY=ts;
   var e0=ymd(pEnd(t));if(S.resEnd!=e0){S.resEnd=e0;S.resUsed=0}             /* acil payı kullanımı dönemle sıfırlanır */
   var today=S.spend.filter(function(x){return x.d==ts}),advT=today.reduce(function(s,x){return s+(x.adv||0)},0),spent=today.reduce(function(s,x){return s+x.a},0),cash=today.filter(function(x){return x.k==null}).reduce(function(s,x){return s+x.a},0);
@@ -1373,7 +1387,9 @@ function show(){
      +'<div class="lab">Açıksa cuma ve cumartesi ışık, hızlı harcamada biraz daha geç uyarır.</div>'
      +'<div class="add" style="margin-top:16px"><button id="ss">Kaydet</button><button class="ghost" id="rs">Sıfırla</button></div><div id="rsq"></div></section>'
      +'<section class="card"><div class="hd">Yedek</div><p class="lab" style="margin:0 0 10px">Bilgilerin sadece bu cihazda. Yedeği kopyalayıp saklarsan telefon değişince ya da silinince geri yükleyebilirsin. Yedekte bütün para bilgilerin var; kime gönderdiğine dikkat et.</p>'
-     +'<div class="add"><button id="bkC">Yedeği kopyala</button><button class="ghost" id="bkU">Yedeği yükle</button></div><div id="bkB"></div></section>';
+     +'<div class="add"><button id="bkC">Yedeği kopyala</button><button class="ghost" id="bkU">Yedeği yükle</button></div><div id="bkB"></div></section>'
+     +'<section class="card"><div class="hd">Görünüm</div><p class="lab" style="margin:0 0 10px">Zemin rengi. Krem seçiliyken telefonun koyu modu açıksa uygulama da koyu olur.</p><div class="sw">'
+     +TEMA.map(function(x){return '<button data-th="'+x[0]+'"'+((S.th||"")===x[0]?' class="on" aria-pressed="true"':' aria-pressed="false"')+'><i style="background:'+x[2]+'"></i>'+x[1]+'</button>'}).join("")+'</div></section>';
   }
   $(h+tabbar());
   bind(ts,t,over,pool,S.plan&&S.plan.d==ts?S.plan:null,{ki:KI,opts:ksafe,end:R.end});
@@ -1461,6 +1477,7 @@ function bind(ts,t,over,pool,pl,K){
     S.ki={card:id,end:ymd(K.end),auto:o.auto,man:null,stop:false,start:ts};KIE=false;sv();show()});
   on("kich",function(){KIE=true;show()});
   on("lao",function(){LAX=1;show()});
+  all("[data-th]",function(b){S.th=b.dataset.th;sv();show()});
   on("apkx",function(){try{localStorage.setItem("butce-apk-gec",String(APKU.c))}catch(e){}APKU=null;show()});
   on("lax",function(){LAX=0;show()});
   all("[data-la]",function(b){var p=b.dataset.la.split(":"),id=+p[0],T=+p[1],c=card(id),R0=LCTX;if(!c||!R0)return;
