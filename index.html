@@ -52,6 +52,7 @@ input.sm{flex:0 0 60px;padding:12px 8px}
 button{border:0;background:var(--acc);color:var(--accink);border-radius:14px;padding:12px 18px;font:inherit;font-size:1rem;font-weight:800;cursor:pointer}
 button.ghost{background:transparent;color:var(--mute);border:1.5px solid var(--line);font-weight:700}
 button.soft{background:var(--acc2);color:var(--acc)}
+a.btn{display:inline-block;background:var(--acc);color:var(--accink);border-radius:14px;padding:12px 18px;font-weight:800;text-decoration:none;text-align:center}
 button.danger{background:var(--bad);color:#fff}
 button:disabled{opacity:.45;cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2.5px solid var(--acc);outline-offset:2px}
@@ -161,7 +162,13 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 <body>
 <main id="app"></main>
 <script>
-var LAX=0;   /* "Limiti artır" kutusu açık mı */
+var LAX=0;
+/* APK güncelleme: Android kabuğu (MainActivity) sitedeki surum.json'a bakar, yeni sürüm varsa apkYeni(kod, ad, bağlantı) çağırır.
+   "Sonra" denirse o sürüm için bir daha gösterilmez (localStorage "butce-apk-gec"). Web sürümünde hiç çağrılmaz. */
+var APKU=null;
+function apkYeni(c,n,u){var gec=null;try{gec=localStorage.getItem("butce-apk-gec")}catch(e){}
+  if(String(c)===gec||!/^https:\/\/zeplonn\.github\.io\/gunluk-butce\/[\w.\/-]+\.apk$/.test(u))return;
+  APKU={c:c,n:String(n).replace(/[^\w.-]/g,""),u:u};if(S&&!W&&!CF)show()}   /* "Limiti artır" kutusu açık mı */
 var CALP=0,CALD=0;   /* takvim sayfası: 0 = önümüzdeki 5 hafta, 1 = gelecek ay · CALD: kayma yönü */
 var PG=0;            /* "Para geldi" formu açık mı */
 var EPF=0,EPE="";   /* borç eritme planı formu açık mı · formdaki uyarı */
@@ -1137,6 +1144,8 @@ function show(){
       }
       kbox+='</div>';
     }
+    /* APK'da yeni sürüm */
+    if(APKU)h+='<div class="card" style="border-color:var(--acc)"><b>Yeni sürüm var'+(APKU.n?': '+APKU.n:'')+'</b><p class="lab" style="margin:4px 0 10px">İndir’e dokununca tarayıcıda iner. Dosyayı açıp “Güncelle”ye bas; bilgilerin yerinde kalır.</p><div class="add"><a class="btn" href="'+esc(APKU.u)+'">İndir</a><button class="ghost" id="apkx">Sonra</button></div></div>';
     /* ödeme günü hatırlatması */
     if(MSG2){h+='<div class="card"><span class="good">✓ '+MSG2+'</span></div>';MSG2=""}
     if(SVERR)h+='<div class="card" style="border-color:var(--bad)"><b>Kaydedilemiyor</b><p class="lab" style="margin:4px 0 0">Tarayıcı bu sayfanın veri saklamasına izin vermiyor (gizli sekme ya da dolu depolama olabilir). Sayfayı kapatırsan değişikliklerin kaybolur; Ayarlar’dan yedeği kopyalayıp sakla.</p></div>';
@@ -1452,6 +1461,7 @@ function bind(ts,t,over,pool,pl,K){
     S.ki={card:id,end:ymd(K.end),auto:o.auto,man:null,stop:false,start:ts};KIE=false;sv();show()});
   on("kich",function(){KIE=true;show()});
   on("lao",function(){LAX=1;show()});
+  on("apkx",function(){try{localStorage.setItem("butce-apk-gec",String(APKU.c))}catch(e){}APKU=null;show()});
   on("lax",function(){LAX=0;show()});
   all("[data-la]",function(b){var p=b.dataset.la.split(":"),id=+p[0],T=+p[1],c=card(id),R0=LCTX;if(!c||!R0)return;
     var end=R0.nxt&&R0.nxt.a?R0.nxt.d:R0.end;
