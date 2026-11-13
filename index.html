@@ -173,6 +173,7 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 <body>
 <main id="app"></main>
 <script>
+var SURUM="0.1.14";   /* derlemede doldurulur (build-pwa.sh / build.sh) */
 var LAX=0;
 /* APK güncelleme: Android kabuğu (MainActivity) sitedeki surum.json'a bakar, yeni sürüm varsa apkYeni(kod, ad, bağlantı) çağırır.
    "Sonra" denirse o sürüm için bir daha gösterilmez (localStorage "butce-apk-gec"). Web sürümünde hiç çağrılmaz. */
@@ -193,8 +194,8 @@ function g(id){return document.getElementById(id)}
 function val(id){return document.getElementById(id).value}
 function on(id,fn){var e=g(id);if(e)e.onclick=fn}
 function all(sel,fn){document.querySelectorAll(sel).forEach(function(b){b.onclick=function(){fn(b)}})}
-/* ---- Zemin rengi: S.th ("" = krem, telefona göre koyu) ---- */
-var TEMA=[["","Krem","#fbf5ee"],["beyaz","Gri","#dedede"],["mavi","Mavi","#cfdcea"],["yesil","Yeşil","#cfe0d2"],["pembe","Pembe","#ecd5db"],["koyu","Koyu","#1c1714"]];   /* anahtar "beyaz" eski kayıtlar için aynı kaldı; 0.1.13'te tonlar koyulaştırıldı */
+/* ---- Zemin rengi: S.th ("" = otomatik: telefona göre krem/koyu · "krem" = her zaman krem) ---- */
+var TEMA=[["","Otomatik","linear-gradient(135deg,#fbf5ee 50%,#1c1714 50%)"],["krem","Krem","#fbf5ee"],["beyaz","Gri","#dedede"],["mavi","Mavi","#cfdcea"],["yesil","Yeşil","#cfe0d2"],["pembe","Pembe","#ecd5db"],["koyu","Koyu","#1c1714"]];   /* anahtar "beyaz" eski kayıtlar için aynı kaldı; 0.1.13'te tonlar koyulaştırıldı */
 function thApply(){var t=S&&S.th||"",r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
   var bg=getComputedStyle(document.body||r).backgroundColor;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute("content",bg)})}   /* PWA'da durum çubuğu rengi */
 function ld(){try{var r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
@@ -1392,8 +1393,9 @@ function show(){
      +'<div class="add" style="margin-top:16px"><button id="ss">Kaydet</button><button class="ghost" id="rs">Sıfırla</button></div><div id="rsq"></div></section>'
      +'<section class="card"><div class="hd">Yedek</div><p class="lab" style="margin:0 0 10px">Bilgilerin sadece bu cihazda. Yedeği kopyalayıp saklarsan telefon değişince ya da silinince geri yükleyebilirsin. Yedekte bütün para bilgilerin var; kime gönderdiğine dikkat et.</p>'
      +'<div class="add"><button id="bkC">Yedeği kopyala</button><button class="ghost" id="bkU">Yedeği yükle</button></div><div id="bkB"></div></section>'
-     +'<section class="card"><div class="hd">Görünüm</div><p class="lab" style="margin:0 0 10px">Zemin rengi. Krem seçiliyken telefonun koyu modu açıksa uygulama da koyu olur.</p><div class="sw">'
-     +TEMA.map(function(x){return '<button data-th="'+x[0]+'"'+((S.th||"")===x[0]?' class="on" aria-pressed="true"':' aria-pressed="false"')+'><i style="background:'+x[2]+'"></i>'+x[1]+'</button>'}).join("")+'</div></section>';
+     +'<section class="card"><div class="hd">Görünüm</div><p class="lab" style="margin:0 0 10px">Zemin rengi. Otomatik: telefonun koyu modu açıksa koyu, değilse krem.</p><div class="sw">'
+     +TEMA.map(function(x){return '<button data-th="'+x[0]+'"'+((S.th||"")===x[0]?' class="on" aria-pressed="true"':' aria-pressed="false"')+'><i style="background:'+x[2]+'"></i>'+x[1]+'</button>'}).join("")+'</div></section>'
+     +'<p class="lab tiny" style="text-align:center;margin:4px 0 0">Günlük bütçe · Sürüm '+esc(SURUM.indexOf("__")==0?"geliştirme":SURUM)+'</p>';
   }
   $(h+tabbar());
   bind(ts,t,over,pool,S.plan&&S.plan.d==ts?S.plan:null,{ki:KI,opts:ksafe,end:R.end});
@@ -1445,6 +1447,7 @@ function bind(ts,t,over,pool,pl,K){
     if(pm&&pm.value=="kmh"&&S.kmh){                          /* Artı Para: bakiye düşmez, eksi hesap borcu artar */
       if(S.kmh.used+v>S.kmh.lim+0.5){MSG2="Artı Para limitin yetmiyor: kullanılabilir "+tl(Math.max(0,S.kmh.lim-S.kmh.used))+".";show();return}
       x.k="kmh";S.kmh.used+=v}
+    else if(c&&+val("tkn")>1&&v>kulOf(c)+0.5){MSG2=esc(c.n)+" limitin bu taksitli alışverişe yetmiyor: kullanılabilir "+tl(Math.max(0,kulOf(c)))+". Kart bilgilerin eskiyse Kartlar’dan güncelle.";show();return}
     else if(c&&+val("tkn")>1){var n=+val("tkn"),ta=Math.round(v/n*100)/100;   /* taksitli: banka tutarın tamamını limitten düşer, her ay bir taksiti ekstreye ekler */
       S.pay.push({n:cat||"Taksitli alışveriş",a:ta,day:c.sd,left:n,card:c.id,d0:x.d,tot:v});var nx=tkNext(c);
       MSG2=tl(v)+" "+n+" taksit ("+esc(c.n)+"): her ay "+tl(ta)+". İlk taksit "+dm(nx.s)+" ekstresine girer, "+dm(nx.p)+" günü ödenir. Taksitler ödeme günlerinde limitinden düşülür.";SDY=0;sv();show();return}
