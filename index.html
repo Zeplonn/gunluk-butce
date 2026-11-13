@@ -173,7 +173,7 @@ box-shadow:0 0 0 10px color-mix(in srgb,var(--lc) 16%,transparent),0 8px 30px co
 <body>
 <main id="app"></main>
 <script>
-var SURUM="0.1.14";   /* derlemede doldurulur (build-pwa.sh / build.sh) */
+var SURUM="0.1.15";   /* derlemede doldurulur (build-pwa.sh / build.sh) */
 var LAX=0;
 /* APK güncelleme: Android kabuğu (MainActivity) sitedeki surum.json'a bakar, yeni sürüm varsa apkYeni(kod, ad, bağlantı) çağırır.
    "Sonra" denirse o sürüm için bir daha gösterilmez (localStorage "butce-apk-gec"). Web sürümünde hiç çağrılmaz. */
@@ -215,6 +215,31 @@ function bkRead(t){
 function bkLoad(o){S=o;mig();W=null;CF=null;TAB="bugun";
   MSG2="Yedek yüklendi ("+dm(pd(o.last))+" tarihli)."+(o.last<ymd(t0())?" Aradaki günlerin gelir ve ödemeleri eklendi; o günlerde harcama yaptıysan akşam uzlaştırmayla bakiyeni düzelt.":"");
   sv();show();window.scrollTo(0,0)}
+/* ---- Yedek dosyası (0.1.15) ----
+   Web: paylaşım menüsü (iPhone'da "Dosyalar'a Kaydet", WhatsApp, Notlar); desteklenmezse metin paylaşımı, o da yoksa indirme.
+   APK: window.AndroidYedek (MainActivity) → kaydet (dosya yeri seçilir) / paylas (metin) / ac (dosya seçici); sonuç bkSonuc / bkDosya ile gelir.
+   Dosya düz metin: ilk satır açıklama, ikinci satır BUTCE1: yedeği (açılıp kopyala-yapıştırla da yüklenebilir). */
+function bkName(){return "gunluk-butce-yedek-"+ymd(t0())+".txt"}
+function bkFileText(){var d=t0();return "Günlük bütçe yedeği · "+dm(d)+" "+d.getFullYear()+" · Yüklemek için: Ayarlar → Yedek → Yedeği yükle → Dosyadan seç\n"+bkMake()+"\n"}
+function bkMsg(ok,m){var b=g("bkB");if(ok){S.bk=ymd(t0());sv()}if(!b)return;b.innerHTML=m?'<p class="'+(ok?'good':'warn')+'" style="margin:10px 0 0">'+(ok?'✓ ':'')+esc(m)+'</p>':''}
+function bkSonuc(ok,m){bkMsg(!!ok,m)}                                    /* APK'dan dönüş */
+function bkSave(){
+  var txt=bkFileText(),name=bkName();
+  if(window.AndroidYedek){try{AndroidYedek.kaydet(txt,name)}catch(e){bkMsg(false,"Dosya kaydedilemedi. Metni kopyala yolunu dene.")}return}
+  var no=function(e){if(e&&e.name=="AbortError")bkMsg(false,"");else bkMsg(false,"Paylaşılamadı. Metni kopyala yolunu dene.")};
+  try{var f=new File([txt],name,{type:"text/plain"});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:"Günlük bütçe yedeği"}).then(function(){bkMsg(true,"Yedek kaydedildi. iPhone’da “Dosyalar’a Kaydet”i seçtiysen Dosyalar uygulamasında duruyor.")},no);return}}catch(e){}
+  if(navigator.share&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){navigator.share({title:"Günlük bütçe yedeği",text:txt}).then(function(){bkMsg(true,"Yedek paylaşıldı.")},no);return}
+  var a=document.createElement("a"),u=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u)},5000);bkMsg(true,"Yedek dosyası indirildi: "+name);
+}
+function bkShareText(){if(window.AndroidYedek){try{AndroidYedek.paylas(bkFileText())}catch(e){bkMsg(false,"Paylaşılamadı.")}}}
+/* dosyadan okunan metin: yükleme kutusuna yazılır, normal yükleme akışı (kontrol + onay) çalışır */
+function bkDosya(t){var i=g("bkI"),l=g("bkL");if(!i||!l)return;i.value=String(t||"").slice(0,3000000);l.click()}
+function bkPick(){
+  if(window.AndroidYedek){try{AndroidYedek.ac()}catch(e){}return}
+  var f=g("bkFile");if(f){f.value="";f.click()}
+}
 function bkCopy(box){
   var t=bkMake(),done=function(){S.bk=ymd(t0());sv();box.innerHTML='<p class="good" style="margin:10px 0 0">✓ Yedek kopyalandı. Notlar’a ya da kendine mesaj olarak yapıştırıp sakla.</p>'},
    manual=function(){box.innerHTML='<p class="lab" style="margin:10px 0 0">Kopyalanamadı. Aşağıdaki metnin tamamını seçip kopyala:</p><textarea id="bkO" readonly>'+t+'</textarea>';var a=g("bkO");a.focus();a.select()},
@@ -223,8 +248,11 @@ function bkCopy(box){
 }
 /* yükleme kutusu: yapıştır → kontrol → onay → yükle */
 function bkLoadUI(box,ask){
-  box.innerHTML='<textarea id="bkI" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="Yedek metnini buraya yapıştır (BUTCE1: ile başlar)"></textarea><p class="warn" id="bkE" hidden></p><div class="add" style="margin-top:8px"><button id="bkL">Yükle</button><button class="ghost" id="bkX">Vazgeç</button></div><div id="bkQ"></div>';
-  g("bkI").focus();on("bkX",function(){box.innerHTML=""});
+  box.innerHTML='<div class="add" style="margin-top:8px"><button class="soft" id="bkFs">Dosyadan seç</button></div><input type="file" id="bkFile" accept=".txt,text/plain" hidden><p class="lab tiny" style="margin:8px 0 0">ya da yedek metnini yapıştır:</p><textarea id="bkI" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="Yedek metnini buraya yapıştır (BUTCE1: ile başlar)"></textarea><p class="warn" id="bkE" hidden></p><div class="add" style="margin-top:8px"><button id="bkL">Yükle</button><button class="ghost" id="bkX">Vazgeç</button></div><div id="bkQ"></div>';
+  on("bkX",function(){box.innerHTML=""});on("bkFs",bkPick);
+  g("bkFile").onchange=function(){var f=this.files&&this.files[0],e=g("bkE");if(!f)return;
+    if(f.size>3000000){e.textContent="Dosya çok büyük; bu bir yedek dosyası değil.";e.hidden=false;return}
+    var r=new FileReader();r.onload=function(){bkDosya(r.result)};r.onerror=function(){e.textContent="Dosya okunamadı.";e.hidden=false};r.readAsText(f)};
   on("bkL",function(){var o=bkRead(val("bkI")),e=g("bkE");
     if(!o){e.textContent="Bu metin bir yedek gibi görünmüyor. Tamamını kopyaladığından emin ol.";e.hidden=false;return}
     e.hidden=true;if(!ask)return bkLoad(o);
@@ -1391,8 +1419,9 @@ function show(){
      +'<label class="sw" style="margin:18px 0 4px"><input type="checkbox" id="wk"'+(S.wkFlex?' checked':'')+'> Hafta sonu esnekliği</label>'
      +'<div class="lab">Açıksa cuma ve cumartesi ışık, hızlı harcamada biraz daha geç uyarır.</div>'
      +'<div class="add" style="margin-top:16px"><button id="ss">Kaydet</button><button class="ghost" id="rs">Sıfırla</button></div><div id="rsq"></div></section>'
-     +'<section class="card"><div class="hd">Yedek</div><p class="lab" style="margin:0 0 10px">Bilgilerin sadece bu cihazda. Yedeği kopyalayıp saklarsan telefon değişince ya da silinince geri yükleyebilirsin. Yedekte bütün para bilgilerin var; kime gönderdiğine dikkat et.</p>'
-     +'<div class="add"><button id="bkC">Yedeği kopyala</button><button class="ghost" id="bkU">Yedeği yükle</button></div><div id="bkB"></div></section>'
+     +'<section class="card"><div class="hd">Yedek</div><p class="lab" style="margin:0 0 10px">Bilgilerin sadece bu cihazda. Yedeği dosyaya kaydedip saklarsan telefon değişince ya da silinince geri yükleyebilirsin. Yedekte bütün para bilgilerin var; kime gönderdiğine dikkat et.</p>'
+     +'<div><button id="bkS" style="width:100%">'+(window.AndroidYedek?'Dosyaya kaydet':'Yedeği kaydet / paylaş')+'</button>'
+     +'<div class="add" style="margin-top:8px;flex-wrap:wrap">'+(window.AndroidYedek?'<button class="soft" id="bkP">Paylaş</button>':'')+'<button class="ghost" id="bkC">Metni kopyala</button><button class="ghost" id="bkU">Yedeği yükle</button></div></div><div id="bkB"></div></section>'
      +'<section class="card"><div class="hd">Görünüm</div><p class="lab" style="margin:0 0 10px">Zemin rengi. Otomatik: telefonun koyu modu açıksa koyu, değilse krem.</p><div class="sw">'
      +TEMA.map(function(x){return '<button data-th="'+x[0]+'"'+((S.th||"")===x[0]?' class="on" aria-pressed="true"':' aria-pressed="false"')+'><i style="background:'+x[2]+'"></i>'+x[1]+'</button>'}).join("")+'</div></section>'
      +'<p class="lab tiny" style="text-align:center;margin:4px 0 0">Günlük bütçe · Sürüm '+esc(SURUM.indexOf("__")==0?"geliştirme":SURUM)+'</p>';
@@ -1536,6 +1565,7 @@ function bind(ts,t,over,pool,pl,K){
   on("ss",function(){collect();S.inc.sort(function(a,b){return a[0]-b[0]});MSG="";sv();show();var x=g("ss");if(x){x.textContent="Kaydedildi ✓";setTimeout(function(){if(g("ss"))g("ss").textContent="Kaydet"},1500)}});
   /* sıfırlama onayı sayfa içinde: yayınlanan sayfalarda tarayıcının confirm() penceresi engellenebiliyor */
   on("bkC",function(){bkCopy(g("bkB"))});
+  on("bkS",bkSave);on("bkP",bkShareText);
   on("bkU",function(){bkLoadUI(g("bkB"),true)});
   on("rs",function(){
     g("rsq").innerHTML='<div class="confirm"><b>Tüm veriler silinsin mi?</b><p class="lab" style="margin:4px 0 10px">Bakiye, harcamalar, kartlar ve ayarlar silinecek. Geri alınamaz.</p>'
