@@ -180,8 +180,12 @@ function sv(){try{localStorage.setItem(KEY,JSON.stringify(S));SVERR=false}catch(
 /* ---- Yedek: bütün veri tek satırlık bir metin olur (BUTCE1: + base64). Metin cihazdan sadece kullanıcı kopyalarsa çıkar. ---- */
 function bkMake(){return "BUTCE1:"+btoa(unescape(encodeURIComponent(JSON.stringify(S))))}
 function bkRead(t){
-  t=String(t||"").replace(/\s+/g,"");var k=t.indexOf("BUTCE1:");if(k<0)return null;
-  try{var o=JSON.parse(decodeURIComponent(escape(atob(t.slice(k+7)))))}catch(e){return null}
+  /* telefon yapıştırırken "BUTCE1:" yazısını küçük harfe çevirebiliyor: önek büyük-küçük harf fark etmeden aranır,
+     sonrasında yalnızca yedeğin karakterleri alınır (sonuna eklenen yazı, tırnak vb. atılır) */
+  t=String(t||"").replace(/\s+/g,"");var k=t.toUpperCase().indexOf("BUTCE1:");if(k<0)return null;
+  var b=(t.slice(k+7).match(/^[A-Za-z0-9+\/_-]+/)||[""])[0].replace(/-/g,"+").replace(/_/g,"/");
+  while(b.length%4)b+="=";
+  try{var o=JSON.parse(decodeURIComponent(escape(atob(b))))}catch(e){return null}
   return o&&typeof o.bal=="number"&&Array.isArray(o.inc)&&Array.isArray(o.cards)&&Array.isArray(o.spend)&&o.last?o:null;
 }
 /* yedeği yükle: arada geçen günlerin gelirleri ve ödemeleri catchUp ile işlenir */
@@ -196,7 +200,7 @@ function bkCopy(box){
 }
 /* yükleme kutusu: yapıştır → kontrol → onay → yükle */
 function bkLoadUI(box,ask){
-  box.innerHTML='<textarea id="bkI" placeholder="Yedek metnini buraya yapıştır (BUTCE1: ile başlar)"></textarea><p class="warn" id="bkE" hidden></p><div class="add" style="margin-top:8px"><button id="bkL">Yükle</button><button class="ghost" id="bkX">Vazgeç</button></div><div id="bkQ"></div>';
+  box.innerHTML='<textarea id="bkI" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="Yedek metnini buraya yapıştır (BUTCE1: ile başlar)"></textarea><p class="warn" id="bkE" hidden></p><div class="add" style="margin-top:8px"><button id="bkL">Yükle</button><button class="ghost" id="bkX">Vazgeç</button></div><div id="bkQ"></div>';
   g("bkI").focus();on("bkX",function(){box.innerHTML=""});
   on("bkL",function(){var o=bkRead(val("bkI")),e=g("bkE");
     if(!o){e.textContent="Bu metin bir yedek gibi görünmüyor. Tamamını kopyaladığından emin ol.";e.hidden=false;return}
